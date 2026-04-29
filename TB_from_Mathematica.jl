@@ -174,18 +174,35 @@ function ChiB(B_k, j)
 end
 
 # Define IHknl[k, N0, n, l]
-function IHknl(k, N0, n, l)
-    term1 = abs(wa(k))^2 * conj(ChiA(k, n-l+N0)) ⋅ (σ1 * ChiA(k, n))
-    term2 = abs(wb(k))^2 * conj(ChiB(k, n-l+N0)) ⋅ (σ1 * ChiB(k, n))
+# function IHknl(k, N0, n, l)
+#   term1 = abs(wa(k))^2 * conj(ChiA(k, n-l+N0)) ⋅ (σ1 * ChiA(k, n))
+#   term2 = abs(wb(k))^2 * conj(ChiB(k, n-l+N0)) ⋅ (σ1 * ChiB(k, n))
+#   return (term1 + term2) * im^l * besselj(l, F) * sin(k + l*π/2)
+# end
+function IHknl(k, N0, n, l, A_vec, B_vec)
+    # Use the pre-calculated eigenvectors A_vec and B_vec
+    term1 = abs(wa(k))^2 * conj(ChiA(A_vec, n-l+N0)) ⋅ (σ1 * ChiA(A_vec, n))
+    term2 = abs(wb(k))^2 * conj(ChiB(B_vec, n-l+N0)) ⋅ (σ1 * ChiB(B_vec, n))
     return (term1 + term2) * im^l * besselj(l, F) * sin(k + l*π/2)
 end
 
+
 # Define IHk[N0, k]
+# function IHk(N0, k)
+#     return sum(IHknl(k, N0, n, l) for n in -Nm:Nm, l in -Nm:Nm)
+# end
+# Revised IHk to calculate eigenvectors once per k-point
 function IHk(N0, k)
-    return sum(IHknl(k, N0, n, l) for n in -Nm:Nm, l in -Nm:Nm)
+    # Calculate eigenvectors for this specific k
+    A_vec = A(k) 
+    B_vec = B(k)
+    return sum(IHknl(k, N0, n, l, A_vec, B_vec) for n in -Nm:Nm, l in -Nm:Nm)
 end
+
 
 # Define IH[N0]
 function IH(N0)
     return sum(IHk(N0, -π/2 + π/Nk * i) for i in 0:Nk)
 end
+
+I_current=IH(40)
