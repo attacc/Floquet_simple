@@ -25,8 +25,6 @@ using .BZ_sampling
 include("Dipoles.jl")
 include("Linear_response.jl")
 include("BSE.jl")
-
-lattice =set_Lattice(2,[a_1,a_2])
 # 
 # Code This code is in Hamiltonian space
 # in dipole approximation only at the K-point
@@ -78,5 +76,5 @@ eps_bg = 1.0   # 1.0 for suspended vacuum, 2.45 for SiO2 substrate
 # 3. Solve BSE directly on top of `tb_sol` and `k_grid`[cite: 2]
 exciton_energies, exciton_wavefunctions = solve_bse(TB_sol, k_grid, lattice, r0, eps_bg)
 
-println("Lowest Exciton Energy: ", exciton_energies[1], " eV")
+println("Lowest Exciton Energy: ", exciton_energies[1]*ha2ev, " eV")
 

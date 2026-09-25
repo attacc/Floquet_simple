@@ -1,4 +1,6 @@
 using LinearAlgebra
+using Base.Threads
+
 
 """
     rytova_keldysh(q, r0, eps_bg, q0_cutoff)
@@ -38,20 +40,21 @@ function solve_bse(tb_sol, k_grid, lattice, r0::Float64, eps_bg::Float64)
     area_per_kpoint = BZ_area / Nk
     q0_cutoff = sqrt(area_per_kpoint / pi)
     
-    for i in 1:Nk
+    println("Building BSE matrix:")
+    Threads.@threads for ik in ProgressBar(1:Nk)
         # Get k-vector for state i
-        k_i = k_grid.kpt[:, i]
+        k_i = k_grid.kpt[:, ik]
         
         # Single-particle eigenvectors for point i
-        u_v_i = tb_sol.eigenvec[:, 1, i]
-        u_c_i = tb_sol.eigenvec[:, 2, i]
+        u_v_i = tb_sol.eigenvec[:, 1, ik]
+        u_c_i = tb_sol.eigenvec[:, 2, ik]
         
-        for j in 1:Nk
-            if i == j
+        for jk in 1:Nk
+            if ik == jk
                 # Diagonal transition energy: E_c(k) - E_v(k)
-                H_BSE[i, i] = E_c[i] - E_v[i]
+                H_BSE[ik, ik] = E_c[ik] - E_v[ik]
             else
-                k_j = k_grid.kpt[:, j]
+                k_j = k_grid.kpt[:, jk]
                 
                 # Momentum transfer vector dk
                 dk = k_i .- k_j
@@ -62,8 +65,8 @@ function solve_bse(tb_sol, k_grid, lattice, r0::Float64, eps_bg::Float64)
                 V_q = rytova_keldysh(q, 0.0, 1.0, q0_cutoff)
                 
                 # Fetch single-particle eigenvectors for point j
-                u_v_j = tb_sol.eigenvec[:, 1, j]
-                u_c_j = tb_sol.eigenvec[:, 2, j]
+                u_v_j = tb_sol.eigenvec[:, 1, jk]
+                u_c_j = tb_sol.eigenvec[:, 2, jk]
                 
                 # Sublattice overlaps
                 overlap_c = dot(u_c_i, u_c_j) # u_c(k)* . u_c(k')
@@ -76,7 +79,7 @@ function solve_bse(tb_sol, k_grid, lattice, r0::Float64, eps_bg::Float64)
                 K_d = -W_q * overlap_c * overlap_v
                 K_x = 2.0 * V_q * overlap_x1 * overlap_x2
                 
-                H_BSE[i, j] = (K_d + K_x) / Nk
+                H_BSE[ik, jk] = 0.0 #(K_d + K_x) / Nk
             end
         end
     end
