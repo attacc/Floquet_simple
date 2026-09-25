@@ -41,8 +41,8 @@ off_diag=.~I(h_dim)
 
 lattice=set_Lattice(2,[a_1,a_2])
 
-n_k1=48
-n_k2=48
+n_k1=36
+n_k2=36
 
 #
 # Gauge for the tight-binding is "lattice" gauge
@@ -53,7 +53,7 @@ dk=0.001
 
 # For Linear reponse only
 freqs_range  =[0.0/ha2ev, 12.0/ha2ev] # eV
-eta          =0.1/ha2ev
+eta          =0.05/ha2ev
 freqs_nsteps =400
 E_vec        = [0.0,1.0] # electric field direction
 
@@ -76,7 +76,7 @@ eps_2_ip = Linear_response(TB_sol, Dip_h, freqs, E_vec, eta)
 #
 #
 ## Physical Parameters for Monolayer hBN for electron-hole interaction
-r0     = 33.5  # Screening length in Angstroms
+r0     = 12.0  # Screening length in Angstroms
 eps_bg = 1.0   # 1.0 for suspended vacuum, 2.45 for SiO2 substrate
 
 

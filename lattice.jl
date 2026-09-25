@@ -2,7 +2,7 @@ module LatticeTools
 
 using LinearAlgebra
 
-export Lattice,set_Lattice,K_cart_to_crys,K_crys_to_cart,generate_R_grid,set_Orbitals
+export Lattice,set_Lattice,generate_R_grid,set_Orbitals,wrap_k_to_BZ
 
 mutable struct Lattice
     dim::Int8
@@ -136,6 +136,35 @@ function set_Lattice(dim, vectors)
     return lattice
 end
 
+
+"""
+    wrap_k_to_BZ(dk_cart::Vector{Float64}, lattice::Lattice)
+
+Applies the minimum-image convention to a momentum vector or k-difference `dk_cart`.
+Converts to reduced fractional coordinates, shifts into the first Brillouin Zone [-0.5, 0.5],
+and maps back to Cartesian space.
+
+# Returns
+- `q_bz`: Minimum-image vector in Cartesian space
+- `q_norm`: Magnitude ||q_bz||
+"""
+function wrap_k_to_BZ(dk_cart::Vector{Float64}, lattice::Lattice)
+    dim = Int(lattice.dim)
+    # 1. Convert Cartesian to fractional reciprocal coordinates directly
+    dk_frac = lattice.b_mat_inv * dk_cart[1:dim]
+
+    # 2. Wrap into [-0.5, 0.5]
+    dk_frac_bz = dk_frac .- round.(dk_frac)
+
+    # 3. Convert back to Cartesian space
+    q_bz = zeros(Float64, dim)
+    for id in 1:dim
+        q_bz .+= dk_frac_bz[id] .* lattice.rvectors[id][1:dim]
+    end
+    return q_bz
+end
+
+
 function set_Orbitals(nOrb, tau_vectors)
     orbitals_tau=Orbitals_tau(
       nOrb,
@@ -143,57 +172,5 @@ function set_Orbitals(nOrb, tau_vectors)
     return orbitals_tau
 end
 
-function generate_R_grid(lattice, k_grid=nothing, n_Rx=nothing, n_Ry=nothing)
-    if k_grid!=nothing && (n_Rx!=nothing && n_Ry!=nothing)
-       println("Error colling generate_R_grid function. Provide k_grid OR n_Rx/y")
-    end
-    if n_Rx==nothing && n_Ry==nothing
-       n_Rx=k_grid.nk_dir[1]
-       n_Ry=k_grid.nk_dir[2]
-    end
-    nR=n_Ry*n_Rx
-    R_vec=zeros(Float64,lattice.dim,nR)
-    iR=1
-    for ix in 1:n_Rx,iy in 1:n_Ry
-      R_vec[:,iR]=lattice.vectors[1][:]*(ix-1)+lattice.vectors[2][:]*(iy-1)
-      iR+=1
-    end
-    r_grid=R_grid(
-                  R_vec,
-                  [n_Rx,n_Ry],
-                  nR)
-    return r_grid
 end
 
-
-function K_crys_to_cart(M_crys::Array{T,3},lattice)  where {T<:Union{Complex{Float64},Float64}}
-  M_cart=similar(M_crys)
-  M_cart.=0.0
-  for iv in 1:lattice.dim,id in 1:lattice.dim
-     M_cart[:,:,id]+=lattice.vectors[iv][id]*M_crys[:,:,iv]*lattice.rv_norm[iv]
-  end
-  M_cart./=(2.0*pi)
-  return M_cart
-end
-
-function K_crys_to_cart(M_crys::Array{T,2},lattice) where {T<:Union{Complex{Float64},Float64}}
-  M_cart=similar(M_crys)
-  M_cart.=0.0
-  for iv in 1:lattice.dim,id in 1:lattice.dim
-     M_cart[:,id]+=lattice.vectors[iv][id]*M_crys[:,iv]*lattice.rv_norm[iv]
-  end
-  M_cart./=(2.0*pi)
-  return M_cart
-end
-
-
-function K_cart_to_crys(M_cart::Array{T,3},lattice) where {T<:Union{Complex{Float64},Float64}}
-  M_crys=similar(M_cart)
-  M_crys.=0.0
-  for iv in 1:lattice.dim,id in 1:lattice.dim
-     M_crys[:,:,id]+=lattice.rvectors[iv][id]*M_cart[:,:,id]/lattice.rv_norm[iv]
-  end
-  return M_crys
-end
-
-end 

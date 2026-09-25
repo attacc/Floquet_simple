@@ -29,8 +29,7 @@ function Build_Exciton_Dipoles(Dip_h, exciton_envelopes, k_grid, lattice)
     c_idx = 2
     
     println("Calculating Exciton Dipoles:")
-    
-    for S in 1:N_excitons
+    Threads.@threads for S in ProgressBar(1:N_excitons)
         # Extract envelope A_S(k) for state S
         A_S = exciton_envelopes[:, S]
         

@@ -23,27 +23,31 @@ using .Units
 #E_gap=2.81*2.0/ha2ev  # eV
 #
 # Parameters from Ducastelle, Paleari etc...
-t_0  =2.30/ha2ev
+t_0  =2.92/ha2ev
 E_gap=3.625*2.0/ha2ev
 #
 s_dim=2 # space dimension
 h_dim=2 # hamiltonian dimension
 #
 # Distance between neighbor 
-a_cc=2.632 # a.u.
-
-# Lattice vectors:
-a_1=a_cc/2.0*[3.0,  sqrt(3.0)]
-a_2=a_cc/2.0*[3.0, -sqrt(3.0)]
+a_cc=2.504 # a.u.
 
 # Atom positions
 d_1=      [0.0,0.0]
 d_2=-a_cc*[1.0,0.0]
 
+# Lattice constant a = sqrt(3) * a_cc
+a_lat = sqrt(3.0) * a_cc
+
+# Standard 2D hexagonal lattice vectors (a_lat along x/y)
+
+a_1 = a_cc / 2.0 * [3.0,  sqrt(3.0)]
+a_2 = a_cc / 2.0 * [3.0, -sqrt(3.0)]
+
 nn=zeros(Complex{Float64},3,2)
-nn[1,:]= a_cc/2.0*[1.0,  sqrt(3.0)]
-nn[2,:]= a_cc/2.0*[1.0, -sqrt(3.0)]
-nn[3,:]=-a_cc*[1.0,0.0]
+nn[1,:] = a_cc / 2.0 * [1.0,  sqrt(3.0)]
+nn[2,:] = a_cc / 2.0 * [2.0, -sqrt(3.0)]
+nn[3,:] = -a_cc * [1.0, 0.0]
 
 orbitals=set_Orbitals(2,[d_1,d_2])
 
