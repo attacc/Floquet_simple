@@ -1,3 +1,4 @@
+
 """
     Build_Exciton_Dipoles(Dip_h, exciton_envelopes, k_grid, lattice)
 
@@ -5,10 +6,10 @@ Calculates the excitonic transition dipoles and oscillator strengths from the si
 dipoles `Dip_h` and the BSE eigenvectors `exciton_envelopes`.
 
 # Arguments
-- `Dip_h`: Array(h_dim, h_dim, s_dim, Nk) of single-particle dipoles from Build_Dipole[cite: 8]
+- `Dip_h`: Array(h_dim, h_dim, s_dim, Nk) of single-particle dipoles from Build_Dipole
 - `exciton_envelopes`: Matrix(Nk, N_excitons) containing BSE eigenvectors A^S(k) as columns
-- `k_grid`: K-point sampling structure[cite: 7]
-- `lattice`: Lattice structure containing space dimension `dim`[cite: 3, 7]
+- `k_grid`: K-point sampling structure
+- `lattice`: Lattice structure containing space dimension `dim`
 
 # Returns
 - `D_exciton`: Array(s_dim, N_excitons) containing complex exciton dipoles [D_x, D_y]
@@ -58,8 +59,8 @@ Calculates the 2D macroscopic dielectric function eps_2(omega) from exciton dipo
 - `D_exciton`: Matrix(s_dim, N_excitons) of exciton dipoles
 - `exciton_energies`: Vector of exciton energies Omega_S (in Hartrees)
 - `freqs`: Range/Vector of photon energies hbar omega (in Hartrees)
-- `lattice`: Lattice structure containing reciprocal vectors[cite: 3]
-- `k_grid`: K-point grid structure[cite: 7]
+- `lattice`: Lattice structure containing reciprocal vectors
+- `k_grid`: K-point grid structure
 - `eta`: Broadening parameter in Hartrees
 - `pol_dir`: Polarization vector [E_x, E_y]
 """
@@ -80,8 +81,8 @@ function Build_Dielectric_Function(
     e_pol = pol_dir / norm(pol_dir)
     
     # Reciprocal unit cell area A_BZ in 1/Bohr^2
-    b1 = lattice.rvectors[1][cite: 3]
-    b2 = lattice.rvectors[2][cite: 3]
+    b1 = lattice.rvectors[1]
+    b2 = lattice.rvectors[2]
     BZ_area = abs(b1[1] * b2[2] - b1[2] * b2[1])
     
     # 2D normalization prefactor: 16 * \pi^2 / A_BZ

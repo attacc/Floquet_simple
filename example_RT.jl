@@ -1,8 +1,8 @@
 using FFTW
 using .RealTimesHF
 
-# 1. Compute dH/dk list using Grad_H from your TB_tools.jl[cite: 2]
-dH_dk_list = [Grad_H(ik, k_grid, lattice, tb_sol; Hamiltonian=Hamiltonian) for ik in 1:k_grid.nk][cite: 2]
+# 1. Compute dH/dk list using Grad_H from your TB_tools.jl
+dH_dk_list = [Grad_H(ik, k_grid, lattice, tb_sol; Hamiltonian=Hamiltonian) for ik in 1:k_grid.nk]
 
 # 2. Simulation parameters
 dt = 0.05               # Time step (fs or atomic units; match your Hamiltonian units)
