@@ -24,6 +24,7 @@ using .BZ_sampling
 
 include("Dipoles.jl")
 include("Linear_response.jl")
+include("BSE.jl")
 
 lattice =set_Lattice(2,[a_1,a_2])
 # 
@@ -40,8 +41,8 @@ off_diag=.~I(h_dim)
 
 lattice=set_Lattice(2,[a_1,a_2])
 
-n_k1=64
-n_k2=64
+n_k1=24
+n_k2=24
 
 #
 # Gauge for the tight-binding is "lattice" gauge
@@ -68,33 +69,14 @@ Dip_h,∇H_w=Build_Dipole(k_grid,lattice,TB_sol,orbitals,Hamiltonian,dk)
 #
 freqs=LinRange(freqs_range[1],freqs_range[2],freqs_nsteps)
 #
-# Calculate Xhi
 #
-xhi = Linear_response(TB_sol, Dip_h, freqs, E_vec, eta)
-#
-# Plot and write
-#
-function generate_header(k_grid,eta,Efield_ver,freqs)
-    header="#\n# * * * Linear response xhi(ω) * * * \n#\n" 
-    header*="# k-point grid: $(k_grid.nk_dir[1]) - $(k_grid.nk_dir[2]) \n"
-    header*="# E-field versor: $(Efield_ver) \n"
-    header*="# Frequencies range: $(freqs[1]*ha2ev) - $(freqs[end]*ha2ev) [eV]  \n"
-    header*="# Frequencies steps: $(length(freqs)) \n#\n"
-    return header
-end
-# 
-# Plot and write on disk
-#
-fig = figure("Linear response",figsize=(10,20))
-plot(freqs*ha2ev,real(xhi[:]))
-plot(freqs*ha2ev,imag(xhi[:]))
-PyPlot.show();
+## Physical Parameters for Monolayer hBN for electron-hole interaction
+r0     = 33.5  # Screening length in Angstroms
+eps_bg = 1.0   # 1.0 for suspended vacuum, 2.45 for SiO2 substrate
 
 
-f = open("xhi_w.csv","w")
-header=generate_header(k_grid,eta,E_vec,freqs)
-write(f,header)
-for iw in 1:freqs_nsteps
-    write(f," $(freqs[iw]*ha2ev) $(imag(xhi[iw])) $(real(xhi[iw])) \n")
-end         
-close(f)
+# 3. Solve BSE directly on top of `tb_sol` and `k_grid`[cite: 2]
+exciton_energies, exciton_wavefunctions = solve_bse(TB_sol, k_grid, lattice, r0, eps_bg)
+
+println("Lowest Exciton Energy: ", exciton_energies[1], " eV")
+
