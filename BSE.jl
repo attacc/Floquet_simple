@@ -31,8 +31,8 @@ function solve_bse(tb_sol, k_grid, lattice, r0::Float64, eps_bg::Float64)
     
     # Calculate reciprocal unit cell area to estimate q0 cutoff
     # Area = |b1 x b2|
-    b1 = lattice.bvectors[:, 1]
-    b2 = lattice.bvectors[:, 2]
+    b1 = lattice.rvectors[1]
+    b2 = lattice.rvectors[2]
     BZ_area = abs(b1[1] * b2[2] - b1[2] * b2[1])
     
     area_per_kpoint = BZ_area / Nk
