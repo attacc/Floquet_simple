@@ -40,8 +40,8 @@ off_diag=.~I(h_dim)
 
 lattice=set_Lattice(2,[a_1,a_2])
 
-n_k1=24
-n_k2=24
+n_k1=64
+n_k2=64
 
 #
 # Gauge for the tight-binding is "lattice" gauge
