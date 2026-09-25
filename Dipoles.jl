@@ -1,5 +1,5 @@
 #
-# Dipole matrix elements (Berry connection)
+# Dipole matrix elements 
 # Claudio Attaccalite (2023)
 #
 using LinearAlgebra
