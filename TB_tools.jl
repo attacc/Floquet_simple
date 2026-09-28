@@ -92,7 +92,6 @@ function Solve_TB_on_grid(k_grid,Hamiltonian)
   #
   #print_k_grid(k_grid, lattice)
   #
-  println("Delta-k for derivatives : $dk ")
 
   println("Building Hamiltonian: ")
 
