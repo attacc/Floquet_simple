@@ -2,7 +2,7 @@ module LatticeTools
 
 using LinearAlgebra
 
-export Lattice,set_Lattice,generate_R_grid,set_Orbitals,wrap_k_to_BZ
+export Lattice,set_Lattice,generate_R_grid,set_Orbitals,min_image_shifts
 
 mutable struct Lattice
     dim::Int8
@@ -148,22 +148,22 @@ and maps back to Cartesian space.
 - `q_bz`: Minimum-image vector in Cartesian space
 - `q_norm`: Magnitude ||q_bz||
 """
-function wrap_k_to_BZ(dk_cart::Vector{Float64}, lattice::Lattice)
+function min_image_shifts(dk_cart::Vector{Float64}, lattice::Lattice; tol=1e-9)
     dim = Int(lattice.dim)
-    # 1. Convert Cartesian to fractional reciprocal coordinates directly
-    dk_frac = lattice.b_mat_inv * dk_cart[1:dim]
-
-    # 2. Wrap into [-0.5, 0.5]
-    dk_frac_bz = dk_frac .- round.(dk_frac)
-
-    # 3. Convert back to Cartesian space
-    q_bz = zeros(Float64, dim)
-    for id in 1:dim
-        q_bz .+= dk_frac_bz[id] .* lattice.rvectors[id][1:dim]
+    b1, b2 = lattice.rvectors[1][1:dim], lattice.rvectors[2][1:dim]
+    best = Inf
+    Gs = Vector{Vector{Float64}}()
+    for n1 in -2:2, n2 in -2:2
+        G = n1*b1 + n2*b2
+        q = norm(dk_cart .+ G)
+        if q < best - tol
+            best = q; empty!(Gs); push!(Gs, G)
+        elseif q < best + tol
+            push!(Gs, G)          # tie on the BZ boundary
+        end
     end
-    return q_bz
+    return best, Gs
 end
-
 
 function set_Orbitals(nOrb, tau_vectors)
     orbitals_tau=Orbitals_tau(

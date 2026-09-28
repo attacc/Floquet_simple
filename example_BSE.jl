@@ -81,7 +81,7 @@ eps_bg = 1.0   # 1.0 for suspended vacuum, 2.45 for SiO2 substrate
 
 
 # 3. Solve BSE directly on top of `tb_sol` and `k_grid`
-exciton_energies, exciton_wavefunctions = solve_bse(TB_sol, k_grid, lattice, r0, eps_bg)
+exciton_energies, exciton_wavefunctions = solve_bse(TB_sol, k_grid, lattice, orbitals, r0, eps_bg)
 
 println("Lowest Exciton Energy[1]: ", exciton_energies[1]*ha2ev, " eV")
 println("Lowest Exciton Energy[2]: ", exciton_energies[2]*ha2ev, " eV")
