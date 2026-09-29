@@ -51,7 +51,7 @@ nn[3,:] = -a_cc * [1.0, 0.0]
 
 orbitals=set_Orbitals(2,[d_1,d_2])
 
-export Hamiltonian,Berry_Connection,a_1,a_2,s_dim,h_dim,a_cc,orbitals
+export Hamiltonian,Berry_Connection,a_1,a_2,s_dim,h_dim,a_cc,orbitals,rytova_keldysh_au
   #
   global ndim=2
   #
@@ -81,5 +81,22 @@ export Hamiltonian,Berry_Connection,a_1,a_2,s_dim,h_dim,a_cc,orbitals
         #
 	return H
    end
+   #
+   """
+    rytova_keldysh_au(q_au, r0_au, eps_bg, q0_cutoff_au)
+
+Calculates the 2D Rytova-Keldysh screened Coulomb potential in Atomic Units (Hartree * Bohr).
+- `q_au`: Momentum transfer in 1/Bohr
+- `r0_au`: Screening length in Bohr (33.5 Angstroms = 63.306 Bohr)
+- `eps_bg`: Background dielectric constant
+- `q0_cutoff_au`: Cutoff parameter in 1/Bohr
+"""
+    function rytova_keldysh_kernel(q_au::Float64, r0_au::Float64, eps_bg::Float64, q0_cutoff_au::Float64)
+    # e^2 = 1.0 in atomic units (Hartree * Bohr)
+    q_eff = max(q_au, q0_cutoff_au)
+    return (2.0 * pi) / (eps_bg * q_eff * (1.0 + r0_au * q_eff))
+end
+
+
    #
 end

@@ -1,21 +1,7 @@
 using LinearAlgebra
 using Base.Threads
 using .LatticeTools: Lattice, min_image_shifts
-
-"""
-    rytova_keldysh_au(q_au, r0_au, eps_bg, q0_cutoff_au)
-
-Calculates the 2D Rytova-Keldysh screened Coulomb potential in Atomic Units (Hartree * Bohr).
-- `q_au`: Momentum transfer in 1/Bohr
-- `r0_au`: Screening length in Bohr (33.5 Angstroms = 63.306 Bohr)
-- `eps_bg`: Background dielectric constant
-- `q0_cutoff_au`: Cutoff parameter in 1/Bohr
-"""
-function rytova_keldysh_au(q_au::Float64, r0_au::Float64, eps_bg::Float64, q0_cutoff_au::Float64)
-    # e^2 = 1.0 in atomic units (Hartree * Bohr)
-    q_eff = max(q_au, q0_cutoff_au)
-    return (2.0 * pi) / (eps_bg * q_eff * (1.0 + r0_au * q_eff))
-end
+using .hBN2D:rytova_keldysh_kernel
 
 """
     solve_bse(tb_sol, k_grid, lattice, r0_ang, eps_bg)
@@ -85,7 +71,7 @@ function solve_bse(tb_sol, k_grid, lattice, orbitals, r0_ang::Float64, eps_bg::F
                     acc += dot(u_c_i, ph .* u_c_j) * dot(ph .* u_v_j, u_v_i)
                 end
                 overlap = acc / length(Gs)
-                W_q = rytova_keldysh_au(q_au, r0_au, eps_bg, q0_au)
+                W_q = rytova_keldysh_kernel(q_au, r0_au, eps_bg, q0_au)
                 H_BSE[ik, jk] = -W_q * overlap * (area_per_k / (4.0 * pi^2))
 
             end

@@ -22,19 +22,11 @@
 using LinearAlgebra
 using Base.Threads
 using .LatticeTools: Lattice, min_image_shifts
+using .hBN2D: rytova_keldysh_kernel
+using .Units
 
-const ANG2BOHR_FQ = 1.889726125
 
-"""
-    rytova_keldysh_kernel(q_au, r0_au, eps_bg, q0_cutoff_au)
-
-2D Rytova-Keldysh potential W(q) in Hartree*Bohr^2 (same definition as `rytova_keldysh_au` in BSE.jl).
-"""
-function rytova_keldysh_kernel(q_au::Float64, r0_au::Float64, eps_bg::Float64, q0_cutoff_au::Float64)
-    q_eff = max(q_au, q0_cutoff_au)
-    return (2.0 * pi) / (eps_bg * q_eff * (1.0 + r0_au * q_eff))
-end
-
+include("units.jl")
 """
     BSEKernel
 

@@ -26,13 +26,13 @@ include("BSE_finite_q.jl")
 lattice = set_Lattice(2, [a_1, a_2])
 
 # ---------------- parameters ----------------
-n_k1 = 48
-n_k2 = 48
+n_k1 = 36
+n_k2 = 36
 
 r0       = 12.0    # screening length [Angstrom]
 eps_bg   = 1.0     # 1.0 suspended, 2.45 SiO2
 nstates  = 4       # excitonic bands to plot
-n_steps  = 20      # Q points per segment
+n_steps  = 15      # Q points per segment
 exchange = true   # true: add the bare exchange term (non-analytic dispersion near Gamma)
 
 # ---------------- TB on the k-grid ----------------
