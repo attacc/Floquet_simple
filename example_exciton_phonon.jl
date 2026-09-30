@@ -44,7 +44,18 @@ sigma_ev     = 0.010                          # broadening of energy conservatio
 temperatures = [0.0, 50.0, 100.0, 200.0, 300.0]   # K
 
 # electron-phonon model (force constants in Ha/Bohr^2, beta = -dlnt/dlnd)
-model = hbn_ep_model(K_r=0.22, K_t=0.07, beta=2.5)
+# choose the e-ph model:
+#   :full     -> force-constant phonons (LA,TA,LO,TO) + SSH (+ polar, see keywords)
+#   :acoustic -> continuum LA/TA phonons + deformation potential (acoustic only)
+model_type = :full
+
+if model_type == :full
+    model = hbn_ep_model(K_r=0.22, K_t=0.07, beta=2.5, ssh=true, polar=true)
+elseif model_type == :acoustic
+    model = hbn_acoustic_model(v_LA=14.0, v_TA=10.3, D_B=2.0, D_N=-2.0)
+else
+    error("unknown model_type")
+end
 
 # ---------------- TB and BSE kernel ----------------
 k_grid = generate_unif_grid(n_k1, n_k2, lattice)

@@ -167,3 +167,70 @@ function phonon_dispersion(model, qpath)
     end
     return om
 end
+
+# =============================================================================================
+# Continuum acoustic-phonon model (deformation potential)
+# =============================================================================================
+#
+#  * Phonons : linear dispersion  omega = v |q| ,  TA (polarisation _|_ q) and LA (polarisation || q).
+#              Both atoms of the cell move together: u_a = e_pol exp(iq.r) / sqrt(M_cell)
+#              (M_cell = M_B + M_N).
+#  * e-ph    : on-site deformation potential, orbital dependent,
+#                  dV_a = D_a div(u)   ->   M_aa(q) = i D_a (q . e_pol) / sqrt(M_cell) * g(q)
+#              so only the LA branch couples (div u = 0 for TA). D_B (orbital 1) and D_N (orbital 2)
+#              are the dilation potentials of the two on-site levels; for a neutral exciton what matters
+#              is mainly their difference (gap deformation potential).
+#              The coupling is that of a long-wavelength mode, so it is cut by the form factor
+#              g(q) = exp(-q^2/(2 q_cut^2)).
+#
+# Same interface as hbn_ep_model (nmodes = 2, modes(q), vertex(k,q,e)), so it can be used in its place
+# in exciton_phonon_coupling. Do NOT add its results to those of hbn_ep_model: the latter already
+# contains LA/TA branches (the two lowest ones). Optical branches are only in hbn_ep_model.
+#
+
+const AUVEL_MS     = 2.18769126e6      # atomic unit of velocity [m/s]
+const HA2EV_EPH    = 27.211396132
+
+"""
+    hbn_acoustic_model(; v_LA=14.0, v_TA=10.3, D_B=2.0, D_N=-2.0,
+                         mass_B=10.811, mass_N=14.007, q_cut=0.3)
+
+- `v_LA`, `v_TA` : sound velocities [km/s] (defaults reproduce the small-q slopes of the
+                   nearest-neighbour force-constant model of `hbn_ep_model`)
+- `D_B`, `D_N`   : deformation potentials of the on-site levels of orbital 1 (B) and 2 (N) [eV].
+                   The default values are placeholders (gap deformation potential 4 eV): tune them,
+                   e.g. on a DFT calculation.
+- `q_cut`        : Gaussian cutoff of the coupling [1/Bohr]; `Inf` disables it.
+"""
+function hbn_acoustic_model(; v_LA::Real=14.0, v_TA::Real=10.3,
+                            D_B::Real=2.0, D_N::Real=-2.0,
+                            mass_B::Real=10.811, mass_N::Real=14.007,
+                            q_cut::Real=0.3)
+
+    vLA   = v_LA * 1e3 / AUVEL_MS
+    vTA   = v_TA * 1e3 / AUVEL_MS
+    Mcell = (mass_B + mass_N) * AMU2ME
+    Dloc  = (D_B / HA2EV_EPH, D_N / HA2EV_EPH)
+    smear(q) = isfinite(q_cut) ? exp(-0.5 * (q / q_cut)^2) : 1.0
+
+    function modes(q::AbstractVector{<:Real})
+        qn = norm(q)
+        if qn < 1e-12
+            return [0.0, 0.0], Matrix{Float64}(I, 2, 2)
+        end
+        qh  = Float64.(q) ./ qn
+        tq  = [-qh[2], qh[1]]
+        om  = [vTA * qn, vLA * qn]
+        pol = hcat(tq, qh)                 # columns: TA, LA polarisation vectors
+        p   = sortperm(om)                 # ascending energy
+        return om[p], pol[:, p]
+    end
+
+    function vertex(k::AbstractVector{<:Real}, q::AbstractVector{<:Real}, epol::AbstractVector)
+        s = 1.0im * dot(q, epol) / sqrt(Mcell) * smear(norm(q))
+        return ComplexF64[Dloc[1]*s 0.0; 0.0 Dloc[2]*s]
+    end
+
+    return (nmodes=2, modes=modes, vertex=vertex,
+            v_LA=v_LA, v_TA=v_TA, D_B=D_B, D_N=D_N, q_cut=q_cut)
+end
