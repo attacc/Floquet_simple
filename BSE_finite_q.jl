@@ -108,10 +108,12 @@ end
 Solve the BSE for center-of-mass momentum `Q` (Cartesian, 1/Bohr, any vector, not
 necessarily on the k-grid).
 
-Returns a NamedTuple `(energies, vectors, continuum)`:
+Returns a NamedTuple `(energies, vectors, continuum, UC, E_c)`:
 - `energies`  : lowest `nstates` exciton energies (Hartree)
 - `vectors`   : Nk x nstates envelopes A_S(k) (or `nothing`)
 - `continuum` : min_k [E_c(k+Q) - E_v(k)], lower edge of the e-h continuum (Hartree)
+- `UC`, `E_c` : conduction vectors (norb x Nk) and energies at k+Q used to build the basis
+  (needed to fix the gauge in exciton-phonon matrix elements)
 
 `exchange=true` adds the bare (G=0) exchange term v(Q) = 2 pi / (eps_bg |Q|), which is
 omitted for |Q| ~ 0 (as in BSE.jl at Q=0).
@@ -201,10 +203,10 @@ function solve_bse_finite_q(kernel::BSEKernel, tb_sol, k_grid, Hamiltonian, Q::A
     nst = min(nstates, Nk)
     if return_vectors
         F = eigen(Hermitian(H_BSE), 1:nst)
-        return (energies=F.values, vectors=F.vectors, continuum=continuum)
+        return (energies=F.values, vectors=F.vectors, continuum=continuum, UC=UC, E_c=E_c)
     else
         vals = eigvals(Hermitian(H_BSE), 1:nst)
-        return (energies=vals, vectors=nothing, continuum=continuum)
+        return (energies=vals, vectors=nothing, continuum=continuum, UC=UC, E_c=E_c)
     end
 end
 
