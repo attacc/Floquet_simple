@@ -1,0 +1,556 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs,array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[cal=boondox]{mathalfa}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+
+% ---------------------------------------------------------------- macros
+\newcommand{\ii}{\mathrm{i}}
+\newcommand{\ee}{\mathrm{e}}
+\newcommand{\kk}{\bm{k}}
+\newcommand{\qq}{\bm{q}}
+\newcommand{\QQ}{\bm{Q}}
+\newcommand{\GG}{\bm{G}}
+\newcommand{\RR}{\bm{R}}
+\newcommand{\dd}{\bm{d}}
+\newcommand{\bb}{\bm{b}}
+\newcommand{\aan}{\bm{a}}
+\newcommand{\ttau}{\bm{\tau}}
+\newcommand{\hatq}{\hat{\bm{q}}}
+\newcommand{\hate}{\hat{\bm{e}}}
+\newcommand{\ket}[1]{\left|#1\right\rangle}
+\newcommand{\bra}[1]{\left\langle#1\right|}
+\newcommand{\braket}[2]{\left\langle#1\middle|#2\right\rangle}
+\newcommand{\mel}[3]{\left\langle#1\middle|#2\middle|#3\right\rangle}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\Acell}{A_{\rm cell}}
+\newcommand{\Nk}{N_{\bm k}}
+\newcommand{\NQ}{N_{Q}}
+\newcommand{\Wbar}{\overline{W}(0)}
+\newcommand{\hbarsym}{\hbar}
+\DeclareMathOperator{\sgn}{sgn}
+
+\title{Excitons, exciton--phonon coupling and phonon-induced\\ lifetimes in monolayer hBN:\\ formulas implemented in the Julia codes}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+% =====================================================================
+\section{Scope, conventions and file map}
+\label{sec:conv}
+
+This note collects all the formulas implemented in the Julia files
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+File & Content \\
+\midrule
+\code{TB\_hBN.jl}, \code{lattice.jl}, \code{bz\_sampling.jl} & tight-binding model, lattice, uniform $\bm k$ grids \\
+\code{BSE.jl} & BSE at $\bm Q=0$ (\code{solve\_bse}), Rytova--Keldysh potential \\
+\code{BSE\_finite\_q.jl} & BSE at finite $\bm Q$ (\code{build\_bse\_kernel}, \code{solve\_bse\_finite\_q}, \code{bse\_dispersion}) \\
+\code{EPH\_hBN.jl} & phonon models and electron--phonon vertices \\
+\code{exciton\_phonon.jl} & exciton--phonon coupling on a $\bm Q$ grid, linewidth and lifetime \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Units}
+Atomic units are used throughout: $\hbar=m_e=e=1$, energies in Hartree, lengths in Bohr, so that the bare Coulomb interaction is $1/r$
+and its 2D Fourier transform is $v(q)=2\pi/q$. Conversions used in the codes: $1\,\text{\AA}=1.889726125$ Bohr,
+$1\,\text{amu}=1822.888486\,m_e$, $1\,\text{Ha}=27.2114\,\text{eV}$, $1\,\text{fs}=41.3414$ a.u.\ of time.
+
+\subsection*{Lattice and grid}
+The direct lattice vectors of hBN are
+\begin{equation}
+\aan_{1}=\frac{a_{cc}}{2}(3,\sqrt3),\qquad \aan_{2}=\frac{a_{cc}}{2}(3,-\sqrt3),\qquad a_{cc}=2.75\ \text{Bohr},
+\end{equation}
+with cell area $\Acell=|\aa_1\times\aa_2|=\tfrac{3\sqrt3}{2}a_{cc}^2$. The reciprocal vectors satisfy $\aa_i\cdot\bb_j=2\pi\delta_{ij}$
+and the Brillouin-zone (BZ) area is $\Omega_{\rm BZ}=|\bb_1\times\bb_2|=(2\pi)^2/\Acell$.
+The atoms sit at $\ttau_1=(0,0)$ (B, orbital 1) and $\ttau_2=(-a_{cc},0)$ (N, orbital 2); the three B$\to$N bond vectors are
+\begin{equation}
+\dd_1=\tfrac{a_{cc}}{2}(1,\sqrt3),\quad \dd_2=\tfrac{a_{cc}}{2}(1,-\sqrt3),\quad \dd_3=-a_{cc}(1,0),
+\qquad \dd_n=\RR_n+\ttau_2-\ttau_1 .
+\label{eq:bonds}
+\end{equation}
+The uniform grid has $\Nk=n_1n_2$ points,
+\begin{equation}
+\kk_{i_xi_y}=\frac{i_x}{n_1}\bb_1+\frac{i_y}{n_2}\bb_2,\qquad i_x=0,\dots,n_1-1,\ i_y=0,\dots,n_2-1,
+\end{equation}
+and each point carries the area
+\begin{equation}
+\Omega_k=\frac{\Omega_{\rm BZ}}{\Nk}=\frac{(2\pi)^2}{\Nk\,\Acell}.
+\label{eq:areak}
+\end{equation}
+The combination that multiplies every interaction matrix element in the codes (variable \code{pref} $=$ \code{area\_per\_k/(4$\pi^2$)}) is
+\begin{equation}
+\boxed{\ \frac{\Omega_k}{(2\pi)^2}=\frac{1}{\Nk\,\Acell}\ }
+\label{eq:pref}
+\end{equation}
+i.e.\ the inverse of the normalisation area of the crystal.
+
+% =====================================================================
+\section{Tight-binding model and gauge}
+\label{sec:tb}
+
+The Bloch basis of the two orbitals is taken in the ``atomic gauge'',
+\begin{equation}
+\ket{a,\kk}=\frac{1}{\sqrt N}\sum_{\RR}\ee^{\ii\kk\cdot(\RR+\ttau_a)}\ket{a,\RR},
+\end{equation}
+and the Hamiltonian (function \code{Hamiltonian(k)}) is
+\begin{equation}
+H(\kk)=\begin{pmatrix}E_g/2 & -t_0 f(\kk)\\ -t_0 f^*(\kk) & -E_g/2\end{pmatrix},\qquad
+f(\kk)=\sum_{n=1}^{3}\ee^{\ii\kk\cdot\dd_n},
+\label{eq:Hk}
+\end{equation}
+with $E_g=7.25$ eV and $t_0=2.92$ eV. The bands are $E_{c/v}(\kk)=\pm\sqrt{(E_g/2)^2+t_0^2|f(\kk)|^2}$, with eigenvectors
+$\bm u_v(\kk)$ (band 1) and $\bm u_c(\kk)$ (band 2), $\bm u\in\mathbb C^2$.
+
+\paragraph{Periodicity in this gauge.} From \eqref{eq:Hk}, $H_{12}(\kk+\GG)=\ee^{\ii\GG\cdot(\ttau_2-\ttau_1)}H_{12}(\kk)$, hence
+\begin{equation}
+H(\kk+\GG)=U_{\GG}\,H(\kk)\,U_{\GG}^\dagger,\quad (U_{\GG})_{ab}=\delta_{ab}\ee^{-\ii\GG\cdot\ttau_a}
+\quad\Longrightarrow\quad
+\boxed{\,u_{n,a}(\kk+\GG)=\ee^{-\ii\GG\cdot\ttau_a}\,u_{n,a}(\kk)\,}
+\label{eq:gaugeG}
+\end{equation}
+(up to an irrelevant global phase). This relation is used everywhere a momentum has to be folded back onto the grid (umklapp phases $\bm\varphi$ below).
+
+% =====================================================================
+\section{Rytova--Keldysh screened interaction}
+\label{sec:RK}
+
+The interaction between electron and hole in the monolayer is the statically screened 2D Coulomb potential
+$W(q)=v(q)/\varepsilon(q)$, with the dielectric function of a thin polarisable sheet
+\begin{equation}
+\varepsilon(q)=\varepsilon_{\rm bg}\,(1+r_0 q),
+\end{equation}
+where $r_0$ is the screening length ($r_0=2\pi\chi_{2D}/\varepsilon_{\rm bg}$, $\chi_{2D}$ being the 2D polarisability) and $\varepsilon_{\rm bg}$ the dielectric constant of the environment.
+The function \code{rytova\_keldysh\_kernel} (\code{rytova\_keldysh\_au} in \code{BSE.jl}) implements
+\begin{equation}
+\boxed{\,W(q)=\frac{2\pi}{\varepsilon_{\rm bg}\,q_{\rm eff}\,(1+r_0 q_{\rm eff})},\qquad q_{\rm eff}=\max(q,q_0)\,}
+\label{eq:RK}
+\end{equation}
+in Hartree$\cdot$Bohr$^2$, with the small-$q$ cutoff $q_0$ defined below. In real space Eq.~\eqref{eq:RK} (with $q_0\to0$) is
+\begin{equation}
+W(r)=\frac{\pi}{2\varepsilon_{\rm bg}r_0}\Big[H_0\!\big(\tfrac{r}{r_0}\big)-Y_0\!\big(\tfrac{r}{r_0}\big)\Big]
+\;\longrightarrow\;\frac{1}{\varepsilon_{\rm bg}r}\ (r\gg r_0),\qquad
+\sim-\frac{1}{\varepsilon_{\rm bg}r_0}\ln\frac{r}{r_0}\ (r\ll r_0),
+\end{equation}
+with $H_0$ the Struve and $Y_0$ the Bessel function of the second kind.
+
+\subsection{Diagonal element: cell-averaged $W(q=0)$}
+The sum over $\kk'$ in the BSE is the discretisation of $\int d^2k'/(2\pi)^2$. The term $\kk'=\kk$ would need $W(0)=\infty$; the singularity $1/q$ is however integrable in 2D. The codes replace the integral over the grid cell around $q=0$ by its average, taking the cell as a disc with the same area $\Omega_k$, i.e.\ of radius
+\begin{equation}
+q_0=\sqrt{\Omega_k/\pi}.
+\end{equation}
+Then
+\begin{align}
+\Wbar&=\frac{1}{\pi q_0^2}\int_{|\qq|<q_0}\! d^2q\;\frac{2\pi}{\varepsilon_{\rm bg}\,q\,(1+r_0q)}
+=\frac{1}{\Omega_k}\,\frac{4\pi^2}{\varepsilon_{\rm bg}}\int_0^{q_0}\frac{dq}{1+r_0q}\nonumber\\
+&=\boxed{\ \frac{2\pi}{\varepsilon_{\rm bg}}\,\frac{2\pi}{\Omega_k}\,\frac{\ln(1+r_0q_0)}{r_0}\ }
+\label{eq:Wbar}
+\end{align}
+(variable \code{W\_q0}). The diagonal kernel is therefore $-\Wbar/(\Nk\Acell)=-\Wbar\,\Omega_k/(2\pi)^2$ (\code{W\_diag}, or \code{K\_d*(area\_per\_k/(4$\pi^2$))} in \code{BSE.jl}).
+
+\subsection{Off-diagonal elements}
+For $\kk\neq\kk'$ the potential is evaluated at the \emph{minimum-image} momentum transfer, see Eq.~\eqref{eq:minimg} below, $W(q)$ with $q=\min_{\GG}|\kk-\kk'+\GG|$. The cutoff $q_0$ in \eqref{eq:RK} is irrelevant there for the hexagonal grids used, because the smallest transfer is $|\bb|/n>q_0$.
+
+% =====================================================================
+\section{Bethe--Salpeter equation at \texorpdfstring{$\bm{Q}=0$}{Q=0}}
+\label{sec:BSE0}
+
+\subsection{Exciton basis and equation}
+Two bands (valence $v$, conduction $c$) and the Tamm--Dancoff approximation (TDA) are used. Excitons are
+\begin{equation}
+\ket{S}=\sum_{\kk}A^S_{\kk}\,c^\dagger_{c\kk}c_{v\kk}\ket{0},\qquad \sum_{\kk}|A^S_{\kk}|^2=1,
+\end{equation}
+and the amplitudes solve
+\begin{equation}
+\sum_{\kk'}H_{\kk\kk'}A^S_{\kk'}=E_S A^S_{\kk}.
+\label{eq:BSE0}
+\end{equation}
+
+\subsection{Matrix elements (function \code{solve\_bse})}
+The kernel is the direct (screened) electron--hole attraction; the bare exchange is not included at $\bm Q=0$ (its $\bm G=0$ term is the analytic/non-analytic long-range part that is dropped, see Sec.~\ref{sec:BSEQ}). With \eqref{eq:pref},
+\begin{equation}
+\boxed{\;
+H_{\kk\kk'}=\big[E_c(\kk)-E_v(\kk)\big]\delta_{\kk\kk'}
+-\frac{1}{\Nk\Acell}\,\Big[\,\delta_{\kk\kk'}\,\Wbar+(1-\delta_{\kk\kk'})\,W(q_{\kk\kk'})\,\mathcal O_{\kk\kk'}\Big]\;}
+\label{eq:H0}
+\end{equation}
+where $\mathcal O_{\kk\kk'}$ is the product of sublattice overlaps of the conduction and of the valence Bloch vectors,
+\begin{equation}
+\mathcal O_{\kk\kk'}=\braket{\bm u_c(\kk)}{\bm u_c(\kk')}\,\braket{\bm u_v(\kk')}{\bm u_v(\kk)},
+\label{eq:O0}
+\end{equation}
+which equals $1$ for $\kk=\kk'$ (normalised vectors), hence the plain $\Wbar$ in the diagonal. The screened interaction is approximated by its $\bm G=0$ (macroscopic) component; the internal structure of the orbitals only enters through the overlaps \eqref{eq:O0}.
+
+\subsection{Minimum image and umklapp phases}
+The momentum transfer $\Delta\kk=\kk-\kk'$ is folded to the smallest equivalent vector. The function \code{min\_image\_shifts} returns
+\begin{equation}
+q=\min_{\GG}|\Delta\kk+\GG|,\qquad \mathcal G=\{\GG_l:\ |\Delta\kk+\GG_l|=q\},
+\label{eq:minimg}
+\end{equation}
+where $\mathcal G$ contains more than one vector when $\Delta\kk$ lies on the BZ boundary. Folding means replacing $\kk'\to\kk'+\bm G'_l$ with $\bm G'_l=-\GG_l$, so that $\kk-(\kk'+\bm G'_l)=\Delta\kk+\GG_l$. By \eqref{eq:gaugeG} the Bloch vectors at the shifted point are $\bm\varphi^{(l)}\odot\bm u(\kk')$ with
+\begin{equation}
+\varphi^{(l)}_a=\ee^{-\ii\bm G'_l\cdot\ttau_a}=\ee^{+\ii\GG_l\cdot\ttau_a},
+\end{equation}
+so the overlap in \eqref{eq:H0} is averaged over $\mathcal G$:
+\begin{equation}
+\mathcal O_{\kk\kk'}=\frac{1}{|\mathcal G|}\sum_{l}
+\braket{\bm u_c(\kk)}{\bm\varphi^{(l)}\!\odot\bm u_c(\kk')}\;
+\braket{\bm\varphi^{(l)}\!\odot\bm u_v(\kk')}{\bm u_v(\kk)}.
+\label{eq:Oumk}
+\end{equation}
+($\odot$ is the component-wise product; $\braket{x}{y}=\sum_a x_a^*y_a$.)
+
+The matrix \eqref{eq:H0} is then diagonalised, with energies sorted in ascending order (\code{solve\_bse} returns all $\Nk$ eigenpairs).
+
+% =====================================================================
+\section{Bethe--Salpeter equation at finite momentum \texorpdfstring{$\bm{Q}$}{Q}}
+\label{sec:BSEQ}
+
+\subsection{Basis and equation}
+An electron--hole pair with centre-of-mass momentum $\QQ$ is created by promoting an electron from $(v,\kk)$ to $(c,\kk+\QQ)$:
+\begin{equation}
+\ket{S,\QQ}=\sum_{\kk}A^S_{\kk}(\QQ)\,c^\dagger_{c,\kk+\QQ}c_{v,\kk}\ket{0}.
+\end{equation}
+$\QQ$ is a generic Cartesian vector (in 1/Bohr), not necessarily on the grid. The equation is
+$\sum_{\kk'}H_{\kk\kk'}(\QQ)A^S_{\kk'}(\QQ)=E_S(\QQ)A^S_{\kk}(\QQ)$ with
+\begin{equation}
+\boxed{\;
+H_{\kk\kk'}(\QQ)=\big[E_c(\kk+\QQ)-E_v(\kk)\big]\delta_{\kk\kk'}+K^{d}_{\kk\kk'}(\QQ)+K^{x}_{\kk\kk'}(\QQ)\;}
+\label{eq:HQ}
+\end{equation}
+The conduction band is evaluated at $\kk+\QQ$ by diagonalising $H(\kk+\QQ)$ for each grid point $\kk$ (a $2\times2$ problem), whereas the valence states come from the grid solution.
+
+\paragraph{Direct term.} Same structure as \eqref{eq:H0}, with the conduction vectors taken at $\kk+\QQ$ and $\kk'+\QQ$:
+\begin{align}
+K^d_{\kk\kk}(\QQ)&=-\frac{\Wbar}{\Nk\Acell},\\
+K^d_{\kk\kk'}(\QQ)&=-\frac{W(q_{\kk\kk'})}{\Nk\Acell}\,\frac{1}{|\mathcal G|}\sum_l
+\braket{\bm u_c(\kk+\QQ)}{\bm\varphi^{(l)}\!\odot\bm u_c(\kk'+\QQ)}\,
+\braket{\bm\varphi^{(l)}\!\odot\bm u_v(\kk')}{\bm u_v(\kk)},\quad \kk\ne\kk'.
+\label{eq:Kd}
+\end{align}
+The \emph{same} $\bm\varphi^{(l)}$ acts on both bands because the shift $\kk'\to\kk'+\bm G'_l$ moves $\kk'+\QQ$ to $\kk'+\QQ+\bm G'_l$ as well.
+
+\paragraph{Exchange term (optional, \code{exchange=true}).}
+The repulsive electron--hole exchange couples the pair densities $\rho_{\kk}(\QQ)$ of the two pairs through the bare Coulomb potential. In the tight-binding representation the $\bm G=0$ component of the pair density is
+\begin{equation}
+\rho_{\kk}(\QQ)=\braket{\bm u_c(\kk+\QQ)}{\bm u_v(\kk)},
+\end{equation}
+because multiplying by $\ee^{-\ii\QQ\cdot\bm r}$ on the orbital $a$ at $\RR+\ttau_a$ turns $\ee^{\ii(\kk+\QQ)\cdot(\RR+\ttau_a)}$ into $\ee^{\ii\kk\cdot(\RR+\ttau_a)}$. The kernel is a rank-one matrix,
+\begin{equation}
+\boxed{\;K^x_{\kk\kk'}(\QQ)=\frac{v(Q)}{\Nk\Acell}\,\rho_{\kk}(\QQ)\,\rho_{\kk'}^*(\QQ),\qquad v(Q)=\frac{2\pi}{\varepsilon_{\rm bg}|\QQ|}\;}
+\label{eq:Kx}
+\end{equation}
+(bare Coulomb, screened only by the background; only the $\bm G=0$ component is kept). For $|\QQ|<10^{-8}$ it is set to zero, exactly as at $\bm Q=0$ in Sec.~\ref{sec:BSE0}, so that $\QQ\to0$ with exchange has the well-known non-analytic (direction-dependent) limit replaced by its analytic part. Since only $\GG=0$ is retained, the results with exchange are not periodic in $\QQ$: $\QQ$ must be taken in the first BZ.
+
+\paragraph{Consistency at $\QQ=0$.} For $\QQ=0$ and no exchange, \eqref{eq:HQ} coincides with \eqref{eq:H0}.
+
+\paragraph{Hermiticity and gauge.} Only the upper triangle $\kk<\kk'$ is computed; the lower one is filled with the complex conjugate. The numerically computed vectors at $\kk+\QQ$ have arbitrary phases $\ee^{\ii\theta_{c}(\kk)}$; these change $A_{\kk}\to \ee^{-\ii\theta_c(\kk)}A_{\kk}$ (a diagonal unitary transformation of the basis) and leave all eigenvalues in \eqref{eq:HQ} unchanged. Continuum lower edge: $E_{\rm cont}(\QQ)=\min_{\kk}[E_c(\kk+\QQ)-E_v(\kk)]$.
+
+\subsection{Construction of the kernel: \code{build\_bse\_kernel}}
+\label{sec:kernel}
+
+The $\QQ$-independent ingredients of \eqref{eq:Kd} are computed once per grid, screening length and $\varepsilon_{\rm bg}$, and reused for all $\QQ$.
+
+\paragraph{Index differences.} With the grid definition of Sec.~\ref{sec:conv}, for two points $i=(i_x,i_y)$ and $j=(j_x,j_y)$
+\begin{equation}
+\kk_i-\kk_j=\bb_1\frac{\Delta_x}{n_1}+\bb_2\frac{\Delta_y}{n_2},\qquad
+\Delta_x=i_x-j_x\in[-(n_1-1),n_1-1],\ \Delta_y=i_y-j_y\in[-(n_2-1),n_2-1].
+\end{equation}
+Hence $q_{ij}$, the set $\mathcal G$ and the phases $\bm\varphi^{(l)}$ depend only on $\bm\Delta=(\Delta_x,\Delta_y)$, and it is enough to tabulate them on the $(2n_1-1)\times(2n_2-1)$ table of differences instead of on the $\Nk^2$ pairs (for $n_1=n_2=48$: 9\,025 entries instead of $5.3\times10^6$).
+
+\paragraph{What is stored (struct \code{BSEKernel}).}
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+\item \code{pref} $=1/(\Nk\Acell)=\Omega_k/(2\pi)^2$, with $\Omega_k=\Omega_{\rm BZ}/\Nk$ and $\Omega_{\rm BZ}=|b_{1x}b_{2y}-b_{1y}b_{2x}|$.
+\item \code{W\_diag} $=-\Wbar\times$\code{pref}, with $q_0=\sqrt{\Omega_k/\pi}$ and $\Wbar$ from \eqref{eq:Wbar}.
+\item \code{V[$\Delta_x,\Delta_y$]} $=-W(q_{\bm\Delta})\times$\code{pref}, where $(q_{\bm\Delta},\mathcal G_{\bm\Delta})$ is obtained from \code{min\_image\_shifts} applied to $\bb_1\Delta_x/n_1+\bb_2\Delta_y/n_2$ and $W$ from \eqref{eq:RK}; \code{V}$[0,0]=0$.
+\item \code{phases[$\Delta_x,\Delta_y$]}: the list of vectors $\bm\varphi^{(l)}$, $\varphi^{(l)}_a=\ee^{-\ii\bm G'_l\cdot\ttau_a}$, $\bm G'_l=-\GG_l$; for $\bm\Delta=0$ the list is $[(1,1)]$.
+\item \code{ikx}, \code{iky}: integer indices $(i_x,i_y)$ of every $\kk$ point (from \code{ik\_map\_inv}), used to find $\bm\Delta$ of a pair in $O(1)$.
+\end{enumerate}
+
+\paragraph{Algorithm of \code{solve\_bse\_finite\_q} for one $\QQ$.}
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+\item Valence energies/vectors $E_v(\kk),\bm u_v(\kk)$ from the grid solution.
+\item Conduction energies/vectors at $\kk+\QQ$: diagonalise $H(\kk+\QQ)$ for all $\kk$ (threaded). For $|\QQ|<10^{-12}$ the grid solution is used.
+\item Continuum edge $E_{\rm cont}=\min_{\kk}[E_c(\kk+\QQ)-E_v(\kk)]$.
+\item If exchange is on and $|\QQ|>10^{-8}$: $\rho_{\kk}$ and $v(Q)$.
+\item Diagonal: $E_c(\kk+\QQ)-E_v(\kk)+$\code{W\_diag}$\,(+\,\text{\code{pref}}\,v(Q)|\rho_{\kk}|^2)$.
+\item Upper triangle: for each pair, $\bm\Delta$ gives \code{V} and the list \code{phases}; the overlaps in \eqref{eq:Kd} are evaluated without allocations as
+\[
+\sum_a u^*_{c,a}(\kk{+}\QQ)\,\varphi_a\,u_{c,a}(\kk'{+}\QQ)\;\times\;\sum_a\varphi^*_a\,u^*_{v,a}(\kk')\,u_{v,a}(\kk),
+\]
+averaged over the list, multiplied by \code{V}; add $\text{\code{pref}}\,v(Q)\rho_{\kk}\rho^*_{\kk'}$ if exchange is on; fill the lower triangle by conjugation.
+\item Lowest \code{nstates} eigenpairs of the Hermitian matrix (\code{eigen(Hermitian(H),1:nstates)}); the function returns the energies, the envelopes $A^S_{\kk}(\QQ)$ (if requested), $E_{\rm cont}$, and the conduction vectors and energies at $\kk+\QQ$ (\code{UC}, \code{E\_c}), which are needed to fix the gauge in Sec.~\ref{sec:exph}.
+\end{enumerate}
+The cost is $O(\Nk^2)$ operations per $\QQ$ to build the matrix and $O(\Nk^3)$ for the dense diagonalisation.
+
+\subsection{Excitonic dispersion along $\Gamma\to K\to M\to\Gamma$}
+For the hexagonal lattice ($|\bb_1|=|\bb_2|$, $|\cos\angle(\bb_1,\bb_2)|=1/2$; here $120^\circ$)
+\begin{equation}
+\Gamma=\bm0,\qquad K=\begin{cases}(2\bb_1+\bb_2)/3&\bb_1\cdot\bb_2<0\\(\bb_1+\bb_2)/3&\bb_1\cdot\bb_2>0\end{cases},\qquad M=\bb_1/2,
+\end{equation}
+(function \code{hex\_high\_symmetry\_points}). The path is sampled with \code{n\_steps} points per segment, $3\,n_{\rm steps}+1$ in total, and \code{bse\_dispersion} solves \eqref{eq:HQ} at every point, returning $E_S(\QQ)$ and $E_{\rm cont}(\QQ)$.
+
+% =====================================================================
+\section{Phonon models}
+\label{sec:phonons}
+
+All models provide, for every $\qq$, the frequencies $\omega_\nu(\qq)$ and the polarisation vectors $\bm\varepsilon^{(\nu)}(\qq)$, and enter the electron--phonon coupling through the displacement field
+\begin{equation}
+u_{a\alpha}(\RR)=\sum_{\qq\nu}\frac{1}{\sqrt{2N M_a\omega_{\qq\nu}}}\;\varepsilon^{(\nu)}_{a\alpha}(\qq)\,\ee^{\ii\qq\cdot(\RR+\ttau_a)}\big(b_{\qq\nu}+b^\dagger_{-\qq\nu}\big),
+\label{eq:ufield}
+\end{equation}
+where $N$ is the number of unit cells, $M_a$ the mass of atom $a$ ($M_1=M_{\rm B}=10.811$ amu, $M_2=M_{\rm N}=14.007$ amu) and $\bm\varepsilon^{(\nu)}(\qq)$ is normalised, $\sum_{a\alpha}|\varepsilon_{a\alpha}|^2=1$.
+
+\subsection{Force-constant model (\code{hbn\_ep\_model})}
+In-plane nearest-neighbour model with radial ($K_r$) and tangential ($K_t$) force constants. For the bond $n$ with unit vector $\hate_n=\dd_n/|\dd_n|$,
+\begin{equation}
+\Phi_n=K_r\,\hate_n\hate_n^{T}+K_t\big(\mathbb 1-\hate_n\hate_n^{T}\big),\qquad
+V_{\rm el}=\frac12\sum_{\rm bonds}(\bm u_2-\bm u_1)^T\Phi_n(\bm u_2-\bm u_1).
+\end{equation}
+Inserting the plane-wave ansatz $u_{a}(\RR)=\bm\varepsilon_a\ee^{\ii\qq\cdot(\RR+\ttau_a)}/\sqrt{M_a}$ in the equations of motion gives, in the basis $(1x,1y,2x,2y)$ and in the same atomic gauge as the electrons, the dynamical matrix
+\begin{equation}
+D(\qq)=\begin{pmatrix}
+\dfrac{\sum_n\Phi_n}{M_{\rm B}} & D_{12}(\qq)\\[2mm]
+D_{12}^\dagger(\qq) & \dfrac{\sum_n\Phi_n}{M_{\rm N}}
+\end{pmatrix},\qquad
+D_{12}(\qq)=-\frac{1}{\sqrt{M_{\rm B}M_{\rm N}}}\sum_{n=1}^{3}\Phi_n\,\ee^{\ii\qq\cdot\dd_n},
+\label{eq:Dq}
+\end{equation}
+and $D(\qq)\bm\varepsilon^{(\nu)}=\omega_\nu^2\bm\varepsilon^{(\nu)}$, four modes (LA, TA, LO, TO) sorted by increasing energy at each $\qq$. Since $\sum_n\Phi_n=\tfrac32(K_r+K_t)\mathbb 1$, the optical frequency at $\Gamma$ is
+$\omega_{\rm O}^2=\tfrac32(K_r+K_t)/\mu$, $\mu=M_{\rm B}M_{\rm N}/(M_{\rm B}+M_{\rm N})$. The defaults $K_r=0.22$, $K_t=0.07$ Ha/Bohr$^2$ give $\omega_{\rm O}(\Gamma)\simeq170$ meV and isotropic sound velocities $v_{\rm TA}\simeq10.3$, $v_{\rm LA}\simeq14.0$ km/s. Flexural (out-of-plane) modes are not included.
+
+\subsection{Polar phonons: non-analytic term}
+Born charges $Z_{\rm B}=+Z^*$, $Z_{\rm N}=-Z^*$ (default $Z^*=2.7$) give the ionic polarisation density
+$\bm P=\frac{1}{\Acell}\sum_aZ_a\bm u_a$ and the bound charge $\rho=-\nabla\!\cdot\!\bm P=-\ii\,\qq\cdot\bm P$. The potential is the screened 2D Coulomb one with a Gaussian form factor (smeared dipoles),
+\begin{equation}
+v_{\rm scr}(q)=\frac{2\pi}{q\,\varepsilon_{\rm pol}(1+r_0^{\rm pol}q)},\qquad g(q)=\ee^{-q^2/(2q_{\rm cut}^2)}.
+\end{equation}
+The electrostatic energy per cell of the field, $\frac{\Acell}{2}v_{\rm scr}g^2|\qq\cdot\bm P|^2$, produces the non-analytic force constants
+\begin{equation}
+\Phi^{\rm NA}_{a\alpha,b\beta}(\qq)=\frac{2\pi q\,g^2(q)}{\Acell\,\varepsilon_{\rm pol}(1+r_0^{\rm pol}q)}\;Z_aZ_b\,\hat q_\alpha\hat q_\beta ,
+\end{equation}
+that add to $D(\qq)$ a rank-one term ($\Phi^{\rm NA}/\sqrt{M_aM_b}$),
+\begin{equation}
+D^{\rm NA}(\qq)=\frac{2\pi q\,g^2(q)}{\Acell\,\varepsilon_{\rm pol}(1+r_0^{\rm pol}q)}\;\bm w\bm w^{T},\qquad
+\bm w=\Big(\tfrac{Z_{\rm B}\hat q_x}{\sqrt{M_{\rm B}}},\tfrac{Z_{\rm B}\hat q_y}{\sqrt{M_{\rm B}}},\tfrac{Z_{\rm N}\hat q_x}{\sqrt{M_{\rm N}}},\tfrac{Z_{\rm N}\hat q_y}{\sqrt{M_{\rm N}}}\Big)^{T}.
+\label{eq:DNA}
+\end{equation}
+It vanishes linearly for $q\to0$ (in 2D $\omega_{\rm LO}(0)=\omega_{\rm TO}(0)$) and raises the LO branch at finite $q$; to leading order $\omega^2_{\rm LO}-\omega^2_{\rm TO}\simeq\frac{2\pi q\,g^2Z^{*2}}{\Acell\,\varepsilon_{\rm pol}(1+r_0^{\rm pol}q)\,\mu}$. It is included only for $q>10^{-10}$ 1/Bohr and only when \code{polar=true}. Because only the $\GG=0$ Fourier component is kept, the polar part is not periodic in the BZ ($\qq$ must be folded in the first BZ, and $q_{\rm cut}$ avoids double counting the dipole--dipole interaction already contained in $K_r,K_t$ at large $q$).
+
+\subsection{Acoustic continuum model (\code{hbn\_acoustic\_model})}
+Long-wavelength acoustic modes: the two atoms move rigidly together, $\bm u_a=\bm e_{\rm pol}\,\ee^{\ii\qq\cdot\bm r}/\sqrt{M_{\rm cell}}$, $M_{\rm cell}=M_{\rm B}+M_{\rm N}$, i.e.\ $\bm\varepsilon_a/\sqrt{M_a}=\bm e_{\rm pol}/\sqrt{M_{\rm cell}}$, with linear dispersion
+\begin{equation}
+\omega_{\rm TA}=v_{\rm TA}\,q,\quad \bm e_{\rm TA}=\hat{\bm z}\times\hatq;\qquad
+\omega_{\rm LA}=v_{\rm LA}\,q,\quad \bm e_{\rm LA}=\hatq.
+\end{equation}
+The two modes are returned sorted by energy; at $\qq=0$ both have $\omega=0$. The model is meant for small $q$; the coupling is cut by $g(q)$ (Sec.~\ref{sec:eph}).
+
+% =====================================================================
+\section{Electron--phonon matrix elements}
+\label{sec:eph}
+
+\subsection{General definition}
+With the field \eqref{eq:ufield}, the electron--phonon Hamiltonian is
+\begin{equation}
+H_{\rm ep}=\frac{1}{\sqrt N}\sum_{\qq\nu}\sum_{\kk}\sum_{mn}g^{\nu}_{mn}(\kk,\qq)\,c^\dagger_{m,\kk+\qq}c_{n,\kk}\big(b_{\qq\nu}+b^\dagger_{-\qq\nu}\big),
+\end{equation}
+\begin{equation}
+\boxed{\;g^\nu_{mn}(\kk,\qq)=\frac{1}{\sqrt{2\omega_{\qq\nu}}}\;\mel{\bm u_m(\kk+\qq)}{\,\mathcal M^\nu(\kk,\qq)\,}{\bm u_n(\kk)}\;}
+\label{eq:g}
+\end{equation}
+where $\mathcal M^\nu(\kk,\qq)$ (function \code{model.vertex}; a $2\times2$ matrix in the orbital basis) is the first-order change of the Bloch Hamiltonian, $\mel{a,\kk+\qq}{\delta H}{b,\kk}$, for the displacement pattern $u_a(\RR)=\bm\varepsilon^{(\nu)}_a\ee^{\ii\qq\cdot(\RR+\ttau_a)}/\sqrt{M_a}$; the factor $1/\sqrt{2\omega}$ is added afterwards (Sec.~\ref{sec:exph}). The $b^\dagger_{-\qq\nu}$ term has the same coefficient as $b_{\qq\nu}$ because $\bm\varepsilon(-\qq)=\bm\varepsilon^*(\qq)$. The vertex of the force-constant model is the sum of the enabled contributions (\code{ssh}, \code{polar}).
+
+\subsection{Short-range coupling: hopping modulation (SSH)}
+The hopping depends on the bond length as
+\begin{equation}
+t(d)=t_0\,\ee^{-\beta(d/a_{cc}-1)},\qquad \frac{dt}{dd}=-\frac{\beta t_0}{a_{cc}},\qquad \kappa\equiv\frac{\beta t_0}{a_{cc}}\ (\beta=2.5).
+\end{equation}
+For each bond $H_{\rm bond}=-t(d)(\ket{1}\!\bra{2}+{\rm h.c.})$, so $\delta H_{\rm bond}=\kappa\,\delta d\,(\ket{1}\!\bra{2}+{\rm h.c.})$ with $\delta d=\hate_n\cdot(\bm u_2-\bm u_1)$. Taking the matrix elements between Bloch sums (phases $\ee^{\ii\kk\cdot\dd_n}$, and $\ee^{\ii\qq\cdot\dd_n}$ from the atomic phases of $\bm u_2$) gives
+\begin{align}
+\mathcal M^{\rm SSH}_{12}(\kk,\qq)&=\kappa\sum_{n=1}^3\Big[\ee^{\ii(\kk+\qq)\cdot\dd_n}\frac{\hate_n\cdot\bm\varepsilon_2}{\sqrt{M_{\rm N}}}-\ee^{\ii\kk\cdot\dd_n}\frac{\hate_n\cdot\bm\varepsilon_1}{\sqrt{M_{\rm B}}}\Big],\nonumber\\
+\mathcal M^{\rm SSH}_{21}(\kk,\qq)&=\kappa\sum_{n=1}^3\Big[\ee^{-\ii\kk\cdot\dd_n}\frac{\hate_n\cdot\bm\varepsilon_2}{\sqrt{M_{\rm N}}}-\ee^{-\ii(\kk+\qq)\cdot\dd_n}\frac{\hate_n\cdot\bm\varepsilon_1}{\sqrt{M_{\rm B}}}\Big],\nonumber\\
+\mathcal M^{\rm SSH}_{11}&=\mathcal M^{\rm SSH}_{22}=0.
+\label{eq:SSH}
+\end{align}
+Check: for $\qq=0$ and a rigid translation ($\bm\varepsilon_1/\sqrt{M_{\rm B}}=\bm\varepsilon_2/\sqrt{M_{\rm N}}$) the coupling vanishes.
+
+\subsection{Polar (Fr\"ohlich-like) coupling}
+The electron potential energy in the field of the displaced ions is $\delta V=-\phi$, $\phi(\qq)=v_{\rm scr}(q)\,g(q)\,\rho(\qq)$, i.e.
+$\delta V(\bm r)=\ii\,v_{\rm scr}(q)g(q)\,\frac{\qq\cdot\sum_aZ_a\bm u_a}{\Acell}\,\ee^{\ii\qq\cdot\bm r}$.
+In the atomic gauge the factor $\ee^{\ii\qq\cdot\bm r}$ evaluated on orbital $a$ cancels the phases of the Bloch sums, so the vertex is proportional to the identity in orbital space:
+\begin{equation}
+\boxed{\;\mathcal M^{\rm pol}(\kk,\qq)=C\,\mathbb 1_{2\times2},\qquad
+C=\ii\,\frac{2\pi}{\Acell}\,\frac{g(q)}{\varepsilon_{\rm pol}(1+r_0^{\rm pol}q)}\sum_{a}Z_a\frac{\hatq\cdot\bm\varepsilon_a}{\sqrt{M_a}}\;}
+\label{eq:pol}
+\end{equation}
+($C=0$ for $q<10^{-10}$). In 2D the $1/q$ of $v_{\rm scr}$ cancels the factor $q$ of the dipole, so $C$ stays finite for $q\to0$ and couples only the longitudinal branch; it is screened for $q\gtrsim1/r_0^{\rm pol}$. Since $\mathcal M^{\rm pol}\propto\mathbb 1$, in a neutral exciton the electron and hole contributions almost cancel at small $Q$ (Sec.~\ref{sec:exph}).
+
+\subsection{Acoustic deformation potential}
+An on-site deformation potential shifts the level of orbital $a$ by $\delta V_a=D_a\nabla\!\cdot\!\bm u$ ($D_1=D_{\rm B}$, $D_2=D_{\rm N}$; defaults $\pm2$ eV, placeholders). With $\nabla\!\cdot\!\bm u\to\ii\,\qq\cdot\bm u$,
+\begin{equation}
+\mathcal M^{\rm ac}(\kk,\qq)=\ii\,\frac{\qq\cdot\bm e_{\rm pol}}{\sqrt{M_{\rm cell}}}\;g(q)\;\mathrm{diag}(D_{\rm B},D_{\rm N}),
+\end{equation}
+with $g(q)=\exp[-q^2/(2q_{\rm cut}^2)]$, $q_{\rm cut}=0.3$ Bohr$^{-1}$. Only LA couples ($\qq\cdot\bm e_{\rm TA}=0$), and $|g^{\rm LA}|\propto\sqrt q$ at small $q$ since $\omega\propto q$. For a neutral exciton mainly the difference $D_{\rm B}-D_{\rm N}$ (gap deformation potential) matters.
+
+% =====================================================================
+\section{Exciton--phonon coupling on a regular \texorpdfstring{$\bm Q$} grid}
+\label{sec:exph}
+
+\subsection{Matrix element}
+Consider the initial exciton $\ket{S,\bm0}$ (envelope $A^S_{\kk}\equiv A^S_{\kk}(\bm0)$) and the final exciton $\ket{S',\QQ}$ (envelope $A^{S'}_{\kk}(\QQ)$), connected by the phonon $(\QQ,\nu)$. Two terms of $H_{\rm ep}$ contribute:
+\begin{itemize}[leftmargin=*,itemsep=0pt]
+\item \emph{electron scattering} $c^\dagger_{c,\kk+\QQ}c_{c,\kk}$: $(v,\kk;c,\kk)\to(v,\kk;c,\kk+\QQ)$;
+\item \emph{hole scattering} $c^\dagger_{v,\kk+\QQ}c_{v,\kk}$: an electron of $(v,\kk)$ fills the hole at $\kk+\QQ$, moving the hole to $\kk$: $(v,\kk+\QQ;c,\kk+\QQ)\to(v,\kk;c,\kk+\QQ)$.
+\end{itemize}
+In the second case the operator ordering gives
+$c^\dagger_{v,\kk+\QQ}c_{v,\kk}\,c^\dagger_{c,\kk+\QQ}c_{v,\kk+\QQ}\ket0=c^\dagger_{c,\kk+\QQ}\,c^\dagger_{v,\kk+\QQ}c_{v,\kk}\,c_{v,\kk+\QQ}\ket0=-c^\dagger_{c,\kk+\QQ}c_{v,\kk}\ket0$
+(the valence band is full in $\ket0$), hence a minus sign. Collecting the two terms:
+\begin{equation}
+G^\nu_{S'S}(\QQ)=\sum_{\kk}A^{S'*}_{\kk}(\QQ)\Big[A^S_{\kk}\,g^\nu_{cc}(\kk,\QQ)\;-\;A^S_{\kk+\QQ}\,g^\nu_{vv}(\kk,\QQ)\Big]\quad(\text{gauge details below}).
+\label{eq:Gnaive}
+\end{equation}
+
+\subsection{Folding  \texorpdfstring{$\bm k+\bm Q$}~ ~onto the grid and gauge}
+$\bm Q$ is taken on the grid, $\QQ_{i_1i_2}=\frac{i_1}{n_1}\bb_1+\frac{i_2}{n_2}\bb_2$ with $i_{1,2}=0,s,2s,\dots$ (stride $s=$\code{q\_step}, $n_{1,2}$ divisible by $s$; $\NQ=(n_1/s)(n_2/s)$ points), and is folded in the first BZ with \code{min\_image\_shifts}: $\QQ\to\QQ+\GG_{\min}$ (first vector of the tie set). The exciton amplitude $A^S_{\kk+\QQ}$ in \eqref{eq:Gnaive} needs the grid point
+\begin{equation}
+\kk+\QQ=\kk_{j(\kk)}+\GG_{\kk},\qquad j(\kk)=\text{grid index (from crystal coordinates } b^{-1}(\kk+\QQ)\text{ times } n_{1,2}),\quad \GG_{\kk}=\kk+\QQ-\kk_{j(\kk)}.
+\end{equation}
+The phases of the numerically computed vectors are arbitrary, therefore Eq.~\eqref{eq:Gnaive} needs the following care.
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+\item The conduction vectors of the final basis $\bm u^{(Q)}_c(\kk+\QQ)$ (returned as \code{UC} by \code{solve\_bse\_finite\_q}) have a different phase than the grid vectors $\bm u_c(\kk_j)$ that define the initial envelope.
+\item By \eqref{eq:gaugeG}, the vectors at $\kk+\QQ$ are $\bm\varphi_{\kk}\odot\bm u(\kk_j)$ with $\varphi_{\kk,a}=\ee^{-\ii\GG_{\kk}\cdot\ttau_a}$.
+\item In the hole term the conduction electron is a spectator: it is the same physical Bloch state in the initial basis, $\bm\varphi_{\kk}\odot\bm u_c(\kk_j)$, and in the final basis, $\bm u^{(Q)}_c(\kk+\QQ)$, but with different phases. This requires the overlap factor
+\begin{equation}
+S_c(\kk)=\braket{\bm u^{(Q)}_c(\kk+\QQ)}{\bm\varphi_{\kk}\odot\bm u_c(\kk_j)} \quad(|S_c|=1).
+\end{equation}
+In the electron term the spectator valence state is the same vector $\bm u_v(\kk)$ in both bases, so no factor is needed.
+\end{enumerate}
+The final expression, implemented in \code{exciton\_phonon\_coupling}, is
+\begin{equation}
+\boxed{\;
+G^\nu_{S'S}(\QQ)=\frac{1}{\sqrt{2\omega_{\QQ\nu}}}\sum_{\kk}A^{S'*}_{\kk}(\QQ)\Big[A^S_{\kk}\,\mathcal g^{\,cc}_{\kk}-A^S_{j(\kk)}\,\mathcal g^{\,vv}_{\kk}\,S_c(\kk)\Big]\;}
+\label{eq:G}
+\end{equation}
+\begin{align}
+\mathcal g^{\,cc}_{\kk}&=\mel{\bm u^{(Q)}_c(\kk+\QQ)}{\mathcal M^\nu(\kk,\QQ)}{\bm u_c(\kk)},\\
+\mathcal g^{\,vv}_{\kk}&=\mel{\bm\varphi_{\kk}\odot\bm u_v(\kk_j)}{\mathcal M^\nu(\kk,\QQ)}{\bm u_v(\kk)},
+\end{align}
+with $\mathcal M^\nu$ evaluated at the unfolded momenta $\kk$ and $\QQ$ (folded in the first BZ). Written with matrices, for all $S',S$ at once: $G=\frac{1}{\sqrt{2\omega}}A_f^\dagger\big[\mathrm{diag}(\mathcal g^{cc})A_i-\mathrm{diag}(\mathcal g^{vv}S_c)\,A_i[j(\cdot),:]\big]$, with $A_i$ the $\Nk\times n_{\rm init}$ envelopes at $\bm0$ and $A_f$ the $\Nk\times n_{\rm final}$ ones at $\QQ$.
+
+\paragraph{Invariances.} (i) A random phase on every Bloch vector leaves $\sum_{S'\in{\rm manifold}}|G|^2$ unchanged; (ii) inside a degenerate manifold of initial or final excitons only sums over the manifold are physical; (iii) for periodic models $G(\QQ)=G(\QQ+\GG)$; this does not hold for the polar model (only $\GG=0$), which is why $\QQ$ is always folded in the first BZ. Modes with $\omega<\omega_{\min}=10^{-7}$ Ha (acoustic at $\Gamma$) are skipped.
+
+% =====================================================================
+\section{Phonon-induced lifetime of the  \texorpdfstring{$\bm Q=0$}~ ~exciton}
+\label{sec:lifetime}
+
+\subsection{Golden rule}
+The initial state is $\ket{S,\bm0}\otimes\ket{\{n\}}$; momentum conservation allows two processes, with the amplitudes of \eqref{eq:G} divided by $\sqrt{\NQ}$:
+\begin{itemize}[leftmargin=*,itemsep=0pt]
+\item \emph{emission} of the phonon $(-\QQ,\nu)$: final exciton $\ket{S',\QQ}$, amplitude $\NQ^{-1/2}G^\nu_{S'S}(\QQ)\sqrt{n_{\QQ\nu}+1}$, energy conservation $E_S=E_{S'}(\QQ)+\omega_{\QQ\nu}$;
+\item \emph{absorption} of the phonon $(\QQ,\nu)$: amplitude $\NQ^{-1/2}G^\nu_{S'S}(\QQ)\sqrt{n_{\QQ\nu}}$, energy conservation $E_S+\omega_{\QQ\nu}=E_{S'}(\QQ)$.
+\end{itemize}
+($\omega_{-\QQ\nu}=\omega_{\QQ\nu}$, and the electronic coefficient of $b^\dagger_{-\QQ\nu}$ equals that of $b_{\QQ\nu}$.) Fermi's golden rule, with the sum over the phonon momenta discretised on the $\NQ$ points of the $\QQ$ grid, gives the decay rate of the population of the exciton $S$,
+\begin{equation}
+\boxed{\;
+\Gamma_S(T)=\frac{2\pi}{\NQ}\sum_{\QQ,\nu,S'}\big|G^\nu_{S'S}(\QQ)\big|^2\Big[\big(n_{\QQ\nu}+1\big)\,\delta\big(E_S-E_{S'}(\QQ)-\omega_{\QQ\nu}\big)+n_{\QQ\nu}\,\delta\big(E_S-E_{S'}(\QQ)+\omega_{\QQ\nu}\big)\Big]\;}
+\label{eq:Gamma}
+\end{equation}
+with the Bose occupation $n_{\QQ\nu}=[\exp(\omega_{\QQ\nu}/k_BT)-1]^{-1}$ ($k_B=3.1668\times10^{-6}$ Ha/K; $n=0$ at $T=0$, where only emission survives). The factor $1/\NQ$ makes the sum a BZ average, $\frac{1}{\NQ}\sum_{\QQ}\to\int d^2Q/\Omega_{\rm BZ}$, independent of the $k$-grid density (the envelopes are normalised).
+
+\subsection{Numerical implementation (\code{exciton\_phonon\_linewidth})}
+\begin{itemize}[leftmargin=*,itemsep=0pt]
+\item The delta functions are replaced by Gaussians of width $\sigma$ (\code{sigma\_ev}, default 10 meV),
+$\delta_\sigma(x)=\ee^{-x^2/2\sigma^2}/(\sigma\sqrt{2\pi})$; $\sigma$ must be converged together with the $\QQ$ grid.
+\item The sum runs over the \code{n\_init} initial excitons at $\bm0$ and the \code{n\_final} lowest final excitons at each $\QQ$ (the sets must not cut a degenerate manifold).
+\item Mode-resolved rates $\Gamma_{S,\nu}$ (branches sorted by energy at each $\QQ$) and the emission/absorption parts are returned as well.
+\item \emph{Degenerate average.} Initial states with $|E_S-E_{S'}|<$\code{deg\_tol} form a manifold $\mathcal D$ (e.g.\ the $K/K'$ doublet). The trace of the rate matrix over the manifold is basis independent, so the reported rate is
+\begin{equation}
+\bar\Gamma_S=\frac{1}{|\mathcal D(S)|}\sum_{S''\in\mathcal D(S)}\Gamma_{S''}.
+\end{equation}
+\item Lifetime and linewidth:
+\begin{equation}
+\tau_S=\frac{1}{\bar\Gamma_S},\qquad \tau_S[\text{fs}]=\frac{1}{\bar\Gamma_S\,[\text{a.u.}]\times41.3414},\qquad
+\text{linewidth (FWHM)}=\hbar\bar\Gamma_S ,
+\end{equation}
+with $\tau=\infty$ if no decay channel is open.
+\end{itemize}
+
+\subsection{Remarks on the results}
+At $T=0$ the lowest exciton at $\bm Q=0$ can only emit phonons into lower states; if it is the band minimum $\bar\Gamma=0$, and the width at finite $T$ comes from absorption, which is dominated by small $Q$ and needs a dense $\QQ$ grid near $\Gamma$ (and small $\sigma$) to be resolved. Acoustic phonons change the energy by tens of meV only, so their contribution to the higher excitons is small unless nearly degenerate final states exist; optical (and polar) branches connect states separated by $\sim170$ meV. The full model (SSH $+$ polar) is not the sum of the two contributions, because their amplitudes in $G^\nu_{S'S}$ interfere. The results of the force-constant model already include its LA/TA branches: do not add those of the continuum acoustic model.
+
+\subsection{Approximations of the approach}
+Two-band model with TDA; screened interaction reduced to its $\GG=0$ component with a static Rytova--Keldysh form; bare exchange only at $\GG=0$; $\bm Q=0$ exchange dropped; phonons from a nearest-neighbour force-constant model (no flexural modes); electron--phonon vertices from a hopping-modulation (SSH), an on-site polar and an on-site deformation-potential term, all frozen (no phonon-induced change of the screening, no exciton--phonon self-consistency); only the decay of the population (out-scattering) is computed, radiative decay and dephasing are not included.
+
+% =====================================================================
+\appendix
+\section{Parameters and defaults}
+\label{app:par}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Quantity & Symbol / keyword & Default \\
+\midrule
+Hopping, gap & $t_0$, $E_g$ & 2.92 eV, 7.25 eV \\
+Bond length & $a_{cc}$ & 2.75 Bohr \\
+Screening length, background & \code{r0}, \code{eps\_bg} & 12 \AA\ (example), 1 \\
+Exchange in BSE & \code{exchange} & false \\
+Radial / tangential force constants & \code{K\_r}, \code{K\_t} & 0.22, 0.07 Ha/Bohr$^2$ \\
+SSH exponent & \code{beta} $=\beta$ & 2.5 \\
+Masses B, N & \code{mass\_B}, \code{mass\_N} & 10.811, 14.007 amu \\
+Switches & \code{ssh}, \code{polar} & true, true \\
+Born charge & \code{Z\_star} $=Z^*$ & 2.7 \\
+Polar screening & \code{r0\_pol\_ang}, \code{eps\_pol} & 12 \AA, 1 \\
+Form-factor cutoff & \code{q\_cut} & 0.3 Bohr$^{-1}$ \\
+Sound velocities & \code{v\_LA}, \code{v\_TA} & 14.0, 10.3 km/s \\
+Deformation potentials & \code{D\_B}, \code{D\_N} & $+2$, $-2$ eV (placeholders) \\
+$\QQ$-grid stride & \code{q\_step} & 3 (with $n_k=36$) \\
+Initial / final excitons & \code{n\_init}, \code{n\_final} & 4, 8 \\
+Broadening & \code{sigma\_ev} & 0.010 eV \\
+Minimum phonon frequency & \code{omega\_min} & $10^{-7}$ Ha \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Map: formula $\leftrightarrow$ code}
+\label{app:map}
+
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Equation & Function / variable & File \\
+\midrule
+\eqref{eq:Hk} & \code{Hamiltonian} & \code{TB\_hBN.jl} \\
+\eqref{eq:RK} & \code{rytova\_keldysh\_kernel} / \code{rytova\_keldysh\_au} & \code{TB\_hBN.jl} / \code{BSE.jl} \\
+\eqref{eq:Wbar} & \code{W\_q0}, \code{q0\_au} & \code{BSE.jl}, \code{BSE\_finite\_q.jl} \\
+\eqref{eq:H0}, \eqref{eq:Oumk} & \code{solve\_bse} & \code{BSE.jl} \\
+\eqref{eq:minimg} & \code{min\_image\_shifts} & \code{lattice.jl} \\
+\eqref{eq:HQ}--\eqref{eq:Kx} & \code{solve\_bse\_finite\_q} & \code{BSE\_finite\_q.jl} \\
+Sec.~\ref{sec:kernel} & \code{BSEKernel}, \code{build\_bse\_kernel} & \code{BSE\_finite\_q.jl} \\
+Dispersion path & \code{hex\_high\_symmetry\_points}, \code{bse\_dispersion}, \code{path\_distance} & \code{BSE\_finite\_q.jl} \\
+\eqref{eq:Dq}, \eqref{eq:DNA} & \code{hbn\_ep\_model} $\to$ \code{modes} & \code{EPH\_hBN.jl} \\
+\eqref{eq:SSH}, \eqref{eq:pol} & \code{hbn\_ep\_model} $\to$ \code{vertex} & \code{EPH\_hBN.jl} \\
+Acoustic model & \code{hbn\_acoustic\_model} & \code{EPH\_hBN.jl} \\
+\eqref{eq:G} & \code{exciton\_phonon\_coupling} & \code{exciton\_phonon.jl} \\
+\eqref{eq:Gamma} & \code{exciton\_phonon\_linewidth} & \code{exciton\_phonon.jl} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
