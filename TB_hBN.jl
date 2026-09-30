@@ -23,7 +23,7 @@ using .Units
 #E_gap=2.81*2.0/ha2ev  # eV
 #
 # Parameters from Ducastelle, Paleari etc...
-t_0  =2.92/ha2ev
+t_0  =2.33/ha2ev  # Parameter from https://arxiv.org/pdf/1806.06201
 E_gap=3.625*2.0/ha2ev
 #
 s_dim=2 # space dimension
