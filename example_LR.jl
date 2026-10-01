@@ -70,7 +70,7 @@ freqs=LinRange(freqs_range[1],freqs_range[2],freqs_nsteps)
 #
 # Calculate Xhi
 #
-xhi = Linear_response(TB_sol, Dip_h, freqs, E_vec, eta)
+xhi = Linear_response(TB_sol, Dip_h, freqs, E_vec, eta, lattice)
 #
 # Plot and write
 #

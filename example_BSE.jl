@@ -55,7 +55,7 @@ dk=0.001
 freqs_range  =[0.0/ha2ev, 12.0/ha2ev] # eV
 eta          =0.05/ha2ev
 freqs_nsteps =400
-E_vec        = [0.0,1.0] # electric field direction
+E_vec        = [1.0,0.0] # electric field direction (same for IP and BSE)
 
 k_grid=generate_unif_grid(n_k1, n_k2, lattice)
 # 
@@ -70,7 +70,8 @@ Dip_h,∇H_w=Build_Dipole(k_grid,lattice,TB_sol,orbitals,Hamiltonian,dk)
 
 freqs=LinRange(freqs_range[1],freqs_range[2],freqs_nsteps)
 # IP dielectric response using existing Linear_response module
-eps_2_ip = Linear_response(TB_sol, Dip_h, freqs, E_vec, eta)
+# Linear_response returns the IP response already normalised as the BSE eps2
+eps_2_ip = Linear_response(TB_sol, Dip_h, freqs, E_vec, eta, lattice)
 
 #
 #
@@ -100,12 +101,12 @@ eps_2_bse = Build_Dielectric_Function(
     lattice,
     k_grid;
     eta=eta,
-    pol_dir=[1.0, 0.0]
+    pol_dir=E_vec
 )
 
 # Convert outputs for printing/plotting
 freqs_ev = collect(freqs .* ha2ev)          # Convert LinRange -> Vector{Float64}
-eps_2_ip_real = imag.(eps_2_ip)*20             # Extract real part as Vector{Float64}
+eps_2_ip_real = imag.(eps_2_ip)                # IP eps2, same normalisation as the BSE
 exciton_energies_ev = exciton_energies .* ha2ev
 
 # 7. Generate Plot
