@@ -34,7 +34,6 @@ E_probe = [1.0, 0.0]
 
 # Broadening
 η = 0.05
-nv = 1
 
 lattice=set_Lattice(2,[a_1,a_2])
 
@@ -52,7 +51,7 @@ dk=0.001
 Dip_h, ∇H_w = Build_Dipole(k_grid, lattice, TB_sol, orbitals, Hamiltonian, dk)
 
 println("Computing linear-response spectrum on $(length(energies)) energies...")
-χ_lr = Linear_response(k_grid, TB_sol, Dip_h, energies, E_probe, η, nv)
+χ_lr = Linear_response(k_grid, TB_sol, Dip_h, energies, E_probe, η, lattice)
 
 # Absorption-like spectrum in the usual convention
 absorption_lr = -imag.(χ_lr)
