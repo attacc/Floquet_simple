@@ -55,22 +55,7 @@ println("Building dipole matrix elements...")
 Dip_h, ∇H_w = Build_Dipole(k_grid, lattice, TB_sol, orbitals, Hamiltonian, dk)
 
 println("Linear response...")
-chi_lr = Linear_response(TB_sol, Dip_h, freqs, E_probe, eta, lattice)   # resonant term only
-
-# resonant + anti-resonant term, same normalisation (what the Floquet calculation contains)
-function chi_full(TB_sol, Dip_h, freqs, E_probe, eta, lattice)
-    b1 = lattice.rvectors[1]; b2 = lattice.rvectors[2]
-    pref = 16.0 * pi / abs(b1[1] * b2[2] - b1[2] * b2[1])
-    nk = size(TB_sol.eigenval, 2)
-    chi = zeros(ComplexF64, length(freqs))
-    for (iw, w) in enumerate(freqs), ik in 1:nk
-        res2  = abs2(sum(Dip_h[1, 2, :, ik] .* E_probe))
-        Delta = TB_sol.eigenval[2, ik] - TB_sol.eigenval[1, ik]
-        chi[iw] += res2 * (1 / (Delta - w - 1im * eta) + 1 / (Delta + w - 1im * eta))
-    end
-    return pref .* chi ./ nk
-end
-chi_ref = chi_full(TB_sol, Dip_h, freqs, E_probe, eta, lattice)
+chi_ref = Linear_response(TB_sol, Dip_h, freqs, E_probe, eta, lattice, antires=true)  
 
 # ---------------- Floquet ----------------
 println("Floquet, length gauge (dipoles of Build_Dipole)...")
@@ -84,8 +69,8 @@ chi_fl_vel = [floquet_linear_response(Hamiltonian, k_grid, TB_sol, lattice, E0_f
 # ---------------- comparison ----------------
 relmax(a, b) = maximum(abs.(a .- b)) / maximum(abs.(b))
 println("\n================ Floquet vs linear response ================")
-println("Im chi: length-gauge Floquet vs Linear_response : ", relmax(imag.(chi_fl_len), imag.(chi_lr)))
-println("Im chi: velocity-gauge Floquet vs Linear_response: ", relmax(imag.(chi_fl_vel), imag.(chi_lr)))
+println("Im chi: length-gauge Floquet vs Linear_response : ", relmax(imag.(chi_fl_len), imag.(chi_ref)))
+println("Im chi: velocity-gauge Floquet vs Linear_response: ", relmax(imag.(chi_fl_vel), imag.(chi_ref)))
 println("Re chi: length-gauge Floquet vs (res+antires)    : ", relmax(real.(chi_fl_len), real.(chi_ref)))
 println("Re chi: velocity-gauge Floquet vs (res+antires)  : ", relmax(real.(chi_fl_vel), real.(chi_ref)))
 println("(differences are normalised to the maximum; the anti-resonant term of chi_ref is absent in Linear_response)")
@@ -93,7 +78,7 @@ println("(differences are normalised to the maximum; the anti-resonant term of c
 # ---------------- plot ----------------
 fx = freqs .* ha2ev
 fig, axs = subplots(2, 1, figsize=(7, 7), sharex=true)
-axs[1].plot(fx, imag.(chi_lr), "-", label="Linear_response")
+axs[1].plot(fx, imag.(chi_ref), "-", label="Linear_response")
 axs[1].plot(fx, imag.(chi_fl_len), "--", label="Floquet (length gauge)")
 axs[1].plot(fx, imag.(chi_fl_vel), ":", label="Floquet (velocity gauge)")
 axs[1].set_ylabel("Im χ  (absorption)")
