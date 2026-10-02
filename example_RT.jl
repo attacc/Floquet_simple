@@ -61,23 +61,6 @@ relmax(a, b) = maximum(abs.(a .- b)) / maximum(abs.(b))
 # ---------------- IPA: linear response and exact formula ----------------
 chi_lr = Linear_response(TB_sol, Dip_h, freqs, pol, eta, lattice; antires=true)   # resonant + anti-resonant
 
-# causal (retarded) form, 1/(Delta-w-i eta) + 1/(Delta+w+i eta): what a real-time calculation gives.
-# (Linear_response with antires=true uses 1/(Delta+w-i eta): same Re chi, opposite sign of the tiny
-#  anti-resonant contribution to Im chi.)
-function chi_ip_exact(TB_sol, Dip_h, freqs, pol, eta, lattice)
-    b1 = lattice.rvectors[1]; b2 = lattice.rvectors[2]
-    pref = 16.0 * pi / abs(b1[1] * b2[2] - b1[2] * b2[1])
-    nk = size(TB_sol.eigenval, 2)
-    chi = zeros(ComplexF64, length(freqs))
-    for (iw, w) in enumerate(freqs), ik in 1:nk
-        res2  = abs2(sum(Dip_h[1, 2, :, ik] .* pol))
-        Delta = TB_sol.eigenval[2, ik] - TB_sol.eigenval[1, ik]
-        chi[iw] += res2 * (1 / (Delta - w - 1im * eta) + 1 / (Delta + w + 1im * eta))
-    end
-    return pref .* chi ./ nk
-end
-chi_ex = chi_ip_exact(TB_sol, Dip_h, freqs, pol, eta, lattice)
-
 # ---------------- real time, IPA ----------------
 println("\nReal time, IPA...")
 chi_rt_ip, t_ip, P_ip = rt_spectrum(TB_sol, Dip_h, lattice, freqs; interaction=nothing, pol=pol,
@@ -110,14 +93,12 @@ if run_pulse_test
     res   = rt_propagate(TB_sol, Dip_h; field=gaussian_pulse(Evec, t0, sigma), tmax=tmax, dt=dt,
                          eta=eta, verbose=false)
     chi_pulse = rt_susceptibility(res.times, res.P[1, :], freqs, lattice; Efield=res.Efield[1, :])
-    println("IPA, pulse:  Im chi vs exact  : ", relmax(imag.(chi_pulse), imag.(chi_ex)))
+    println("IPA, pulse:  Im chi vs exact  : ", relmax(imag.(chi_pulse), imag.(chi_lr)))
 end
 
 # ---------------- comparison ----------------
 println("\n================ real time vs frequency domain ================")
-println("IPA : RT vs exact (res+antires)          Im: ", relmax(imag.(chi_rt_ip), imag.(chi_ex)),
-        "   Re: ", relmax(real.(chi_rt_ip), real.(chi_ex)))
-println("IPA : RT vs Linear_response(antires=true) Im: ", relmax(imag.(chi_rt_ip), imag.(chi_lr)),
+println("IPA : RT vs exact (res+antires)          Im: ", relmax(imag.(chi_rt_ip), imag.(chi_lr)),
         "   Re: ", relmax(real.(chi_rt_ip), real.(chi_lr)))
 println("BSE : RT (TDA) vs solve_bse               Im: ", relmax(imag.(chi_rt_tda), eps2_bse))
 println("BSE : RT (full) vs solve_bse (TDA)        Im: ", relmax(imag.(chi_rt_full), eps2_bse),

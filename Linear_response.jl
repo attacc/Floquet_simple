@@ -50,7 +50,7 @@ function Linear_response(TB_sol, Dip_h, freqs, E_field_ver, η, lattice, nv=1; a
      for ik in 1:nk,iv in 1:nv,ic in nv+1:h_dim
          e_v=TB_sol.eigenval[iv,ik]
          e_c=TB_sol.eigenval[ic,ik]
-         xhi[ifreq]-=Res2[iv,ic,ik]/(e_c-e_v+freqs[ifreq]-η*1im)
+         xhi[ifreq]+=Res2[iv,ic,ik]/(e_c-e_v+freqs[ifreq]+η*1im)
      end
      end
    end
