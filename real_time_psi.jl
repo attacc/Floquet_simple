@@ -3,6 +3,7 @@
 
 using LinearAlgebra
 using Base.Threads
+include("real_time.jl")
 
 """
     rt_propagate_psi(TB_sol, Dip_h; interaction=nothing, kick=nothing, field=nothing,
