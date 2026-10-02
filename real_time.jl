@@ -35,7 +35,6 @@
 #   rho(0+) = exp(-i kappa.D) rho(0) exp(+i kappa.D).
 #
 #   Without interaction  chi(w) = (1/Nk) sum_k |e.D_vc|^2 [ 1/(Delta-w-i eta) + 1/(Delta+w+i eta) ]
-#   (Linear_response keeps only the resonant term).
 # ---------------------------------------------------------------------------------------------
 #
 # Requirements: two bands (h_dim = 2), TB_sol from Solve_TB_on_grid, Dip_h from Build_Dipole,
