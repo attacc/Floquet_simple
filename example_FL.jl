@@ -73,7 +73,7 @@ println("Im chi: length-gauge Floquet vs Linear_response : ", relmax(imag.(chi_f
 println("Im chi: velocity-gauge Floquet vs Linear_response: ", relmax(imag.(chi_fl_vel), imag.(chi_ref)))
 println("Re chi: length-gauge Floquet vs (res+antires)    : ", relmax(real.(chi_fl_len), real.(chi_ref)))
 println("Re chi: velocity-gauge Floquet vs (res+antires)  : ", relmax(real.(chi_fl_vel), real.(chi_ref)))
-println("(differences are normalised to the maximum; the anti-resonant term of chi_ref is absent in Linear_response)")
+#println("(differences are normalised to the maximum; the anti-resonant term of chi_ref is absent in Linear_response)")
 
 # ---------------- plot ----------------
 fx = freqs .* ha2ev
