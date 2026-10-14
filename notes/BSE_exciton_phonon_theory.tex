@@ -63,20 +63,20 @@ File & Content \\
 \code{units.jl} & module \code{Units}: conversion constants (Ha$\leftrightarrow$eV, fs, \AA, field and intensity units) \\
 \code{lattice.jl} & module \code{LatticeTools}: lattice and reciprocal vectors (\code{set\_Lattice}), orbitals, minimum image (\code{min\_image\_shifts}) \\
 \code{bz\_sampling.jl} & module \code{BZ\_sampling}: uniform grids (\code{generate\_unif\_grid}), paths, grid neighbours \\
-\code{TB\_tools.jl} & module \code{TB\_tools}: \code{TB\_Solution}, \code{Solve\_TB\_on\_grid}, $\nabla_kH$ (\code{Grad\_H}), basis rotations \\
+\code{TB\_tools.jl} & module \code{TB\_tools}: \code{TB\_Solution}, \code{Solve\_TB\_on\_grid} (any number of bands), $\nabla_kH$ (\code{Grad\_H}), basis rotations \\
 \code{TB\_hBN.jl} & module \code{hBN2D}: two-band hBN Hamiltonian (Sec.~\ref{sec:tb}), Rytova--Keldysh potential (Sec.~\ref{sec:RK}) \\
 \midrule
 \multicolumn{2}{@{}l}{\emph{Optics, excitons}}\\
 \code{Dipoles.jl} & interband dipoles \code{Build\_Dipole} (Sec.~\ref{sec:optics}) \\
 \code{Linear\_response.jl} & independent-particle $\chi(\omega)$ (Sec.~\ref{sec:optics}) \\
-\code{BSE.jl} & BSE at $\bm Q=0$, TDA (\code{solve\_bse}, Sec.~\ref{sec:BSE0}) \\
+\code{BSE.jl} & BSE at $\bm Q=0$, TDA, any number of bands (\code{solve\_bse}, \code{bse\_index}, Sec.~\ref{sec:BSE0}) \\
 \code{BSE\_dipoles.jl} & exciton dipoles and $\varepsilon_2(\omega)$ (Sec.~\ref{sec:bsespec}) \\
 \code{BSE\_finite\_q.jl} & BSE at finite $\bm Q$ (\code{build\_bse\_kernel}, \code{solve\_bse\_finite\_q}, \code{bse\_dispersion}, Sec.~\ref{sec:BSEQ}) \\
 \code{plot\_bse\_spectrum.jl} & plot of BSE vs IPA spectra with exciton levels \\
 \midrule
 \multicolumn{2}{@{}l}{\emph{Time-dependent response}}\\
 \code{real\_time.jl} & density-matrix real-time propagation, IPA/BSE, kick and pulses, spectra (Sec.~\ref{sec:rt}) \\
-\code{real\_time\_psi.jl} & same with single-particle wavefunctions (Sec.~\ref{sec:rt}) \\
+\code{real\_time\_psi.jl} & same with the occupied wavefunctions, any number of bands (Sec.~\ref{sec:rt}) \\
 \code{FloquetTB.jl} & module \code{FloquetTB}: Floquet--Bloch Hamiltonian and Stark-shift linear response, IPA (Sec.~\ref{sec:floquet}) \\
 \code{FloquetBSE.jl} & Floquet--BSE: linear (BSE by inversion) and self-consistent non-perturbative steady state (Sec.~\ref{sec:flbse}) \\
 \midrule
@@ -228,6 +228,18 @@ where $\mathcal O_{\kk\kk'}$ is the product of sublattice overlaps of the conduc
 \label{eq:O0}
 \end{equation}
 which equals $1$ for $\kk=\kk'$ (normalised vectors), hence the plain $\Wbar$ in the diagonal. The screened interaction is approximated by its $\bm G=0$ (macroscopic) component; the internal structure of the orbitals only enters through the overlaps \eqref{eq:O0}.
+
+\subsection{Several valence and conduction bands}
+\code{solve\_bse} accepts any number of bands (keywords \code{nv}, default $h/2$, \code{vbands}$=1{:}n_v$, \code{cbands}$=n_v{+}1{:}h$). The basis is
+$\ket{vc\kk}=c^\dagger_{c\kk}c_{v\kk}\ket0$ and
+\begin{equation}
+H_{vc\kk,v'c'\kk'}=\big[E_c(\kk)-E_v(\kk)\big]\delta_{vv'}\delta_{cc'}\delta_{\kk\kk'}
+-\frac{W(q_{\kk\kk'})}{\Nk\Acell}\,\braket{\bm u_c(\kk)}{\bm u_{c'}(\kk')}\braket{\bm u_{v'}(\kk')}{\bm u_v(\kk)},
+\end{equation}
+with the same $q=0$ average and umklapp-averaged overlaps as above (for $\kk=\kk'$ the overlaps are $\delta_{cc'}\delta_{vv'}$). The pair index is
+$\kk+\Nk[(c-1)+n_c(v-1)]$ (function \code{bse\_index}), so for $n_v=n_c=1$ the envelopes have the two-band layout. Checked against the two-band
+code ($4\times10^{-14}$ eV) and on a 4-band model of two copies on disjoint orbitals (the excitons of each copy are recovered to $10^{-13}$ eV).
+\code{Build\_Exciton\_Dipoles} still assumes one valence and one conduction band.
 
 \subsection{Minimum image and umklapp phases}
 The momentum transfer $\Delta\kk=\kk-\kk'$ is folded to the smallest equivalent vector. The function \code{min\_image\_shifts} returns
@@ -540,7 +552,9 @@ The function \code{Build\_Dipole} computes $\nabla_{\kk}H$ in the orbital (Wanni
 \boxed{\,\bm D_{nm}(\kk)=\ii\,\frac{\mel{u_n(\kk)}{\nabla_{\kk}H(\kk)}{u_m(\kk)}}{E_m(\kk)-E_n(\kk)},\qquad n\neq m,\qquad \bm D_{nn}=0\,}
 \label{eq:dip}
 \end{equation}
-(array \code{Dip\_h[n,m,$\alpha$,k]}, $\bm D_{mn}=\bm D_{nm}^*$). Only the interband (off-diagonal) part of the position operator is kept everywhere below.
+(array \code{Dip\_h[n,m,$\alpha$,k]}, $\bm D_{mn}=\bm D_{nm}^*$); for (quasi-)degenerate pairs, $|E_m-E_n|<$ \code{deg\_tol} ($10^{-8}$ Ha), the dipole is set to zero.
+The band structure comes from \code{Solve\_TB\_on\_grid}, which works for any Hamiltonian dimension $h$ (taken from \code{Hamiltonian(k)}),
+returns ascending eigenvalues and prints the gaps between bands $n_v$ and $n_v+1$ (keyword \code{nv}, default $h/2$). Only the interband (off-diagonal) part of the position operator is kept everywhere below.
 
 \subsection{Linear response (\code{Linear\_response.jl})}
 For a field polarised along $\hate$, with $\Delta_{\kk}=E_c(\kk)-E_v(\kk)$,
@@ -611,9 +625,26 @@ The linear response of \eqref{eq:eom} is the BSE: TDA with \code{tda=true}, full
 \code{dt}; \code{gaussian\_pulse} provides a finite pulse.
 
 \subsection{Wavefunction version (\code{real\_time\_psi.jl})}
-\code{rt\_propagate\_psi} propagates $\ket{\psi_{\kk}}=(c_v,c_c)$ with $\ii\,d\ket{\psi}/dt=H[\rho]\ket{\psi}-\ii\eta\,c_c$, $\rho=\ket{\psi}\bra{\psi}$,
-with the same self-energy \eqref{eq:SEX}. Damping a pure state is not equivalent to dephasing a density matrix (the norm is not conserved), so
-the two codes agree in the linear regime but not beyond (the wavefunction damping also empties the conduction population at rate $2\eta$); \code{example\_RT\_psi.jl} is the corresponding driver.
+\code{rt\_propagate\_psi} propagates the $n_v$ occupied states of each $\kk$, collected in the $h\times n_v$ matrix
+$\Psi_{\kk}=(\ket{\psi_{\kk,1}},\dots,\ket{\psi_{\kk,n_v}})$ (band basis, $\Psi_{\kk}(0)$ = first $n_v$ unit vectors), for any number of bands $h$
+and of valence bands $n_v$ (keyword \code{nv}):
+\begin{equation}
+\ii\frac{d\ket{\psi_{\kk,i}}}{dt}=H_{\kk}[\rho](t)\ket{\psi_{\kk,i}}-\ii\eta\,\hat P_c\ket{\psi_{\kk,i}},\qquad
+\rho_{\kk}=\Psi_{\kk}\Psi_{\kk}^\dagger=\sum_{i=1}^{n_v}\ket{\psi_{\kk,i}}\bra{\psi_{\kk,i}},
+\end{equation}
+with $\hat P_c$ the projector on the conduction bands, $H_{\kk}$ as in \eqref{eq:eom} and the self-energy \eqref{eq:SEX} generalised to $n_{\rm orb}$ orbitals,
+\begin{equation}
+\Sigma^{\rm orb}_{ab}(\kk)=\sum_{\kk'}M^{ab}_{\kk\kk'}\,\delta\rho^{\rm orb}_{ab}(\kk'),\qquad
+M^{ab}_{\kk\kk'}=V_{\kk\kk'}\frac{1}{|\mathcal G|}\sum_{\GG\in\mathcal G}\varphi^{(\GG)}_a\varphi^{(\GG)*}_b ,
+\end{equation}
+built by \code{rt\_build\_interaction\_general} (for two orbitals $M^{aa}=V$, $M^{12}=C$, $M^{21}=C^*$, and the output of
+\code{rt\_build\_interaction} is accepted as well, \code{rt\_orbital\_kernel}). In the TDA only the block $\rho_{cv}$ is a source and
+$\Sigma$ is restricted to its $cv$ block and the hermitian conjugate. The kick is $\Psi_{\kk}(0^+)=\ee^{-\ii\kappa\hate\cdot\bm D_{\kk}}\Psi_{\kk}(0)$ and
+$\bm P=-\frac{1}{\Nk}\sum_{\kk}\mathrm{Re}\,\mathrm{Tr}[\rho_{\kk}\bm D_{\kk}]$; by default (\code{interband\_only=true}) only the valence--conduction
+dipoles are kept. For $h=2$, $n_v=1$ the code reproduces the former $2\times2$ implementation (checked to $10^{-15}$ on the polarisation, also for a
+4-band test made of two decoupled copies with $n_v=2$). Damping a pure state is not equivalent to dephasing a density matrix (the norm is not
+conserved and the conduction population decays at rate $2\eta$), so this code and \code{rt\_propagate} agree in the linear regime but not beyond;
+\code{example\_RT\_psi.jl} is the corresponding driver.
 
 % =====================================================================
 \section{Floquet theory for independent particles (\code{FloquetTB.jl})}
@@ -793,7 +824,7 @@ Acoustic model & \code{hbn\_acoustic\_model} & \code{EPH\_hBN.jl} \\
 \eqref{eq:chiIP} & \code{Linear\_response} & \code{Linear\_response.jl} \\
 \eqref{eq:eps2} & \code{Build\_Dielectric\_Function} & \code{BSE\_dipoles.jl} \\
 \eqref{eq:eom}--\eqref{eq:SEX} & \code{rt\_build\_interaction}, \code{rt\_propagate} & \code{real\_time.jl} \\
-Wavefunction RT & \code{rt\_propagate\_psi}, \code{rt\_spectrum\_psi} & \code{real\_time\_psi.jl} \\
+Wavefunction RT & \code{rt\_propagate\_psi}, \code{rt\_build\_interaction\_general} & \code{real\_time\_psi.jl} \\
 \eqref{eq:HF} & \code{compute\_fourier\_components} & \code{FloquetTB.jl} \\
 Stark shift & \code{floquet\_linear\_response} & \code{FloquetTB.jl} \\
 \eqref{eq:flbse_lin} & \code{fl\_bse\_blocks}, \code{floquet\_bse\_linear} & \code{FloquetBSE.jl} \\

@@ -78,17 +78,28 @@ function Grad_H(ik, k_grid, lattice, TB_sol; Hamiltonian=nothing, deltaK=nothing
     #
 end
 
-function Solve_TB_on_grid(k_grid,Hamiltonian)
-  # 
+"""
+    Solve_TB_on_grid(k_grid, Hamiltonian; nv=nothing)
+
+Diagonalises `Hamiltonian(k)` on all the k-points of `k_grid`, for any matrix dimension: `h_dim` is taken
+from the size of the Hamiltonian at the first k-point. Bands are sorted in ascending energy.
+`nv` (number of valence bands) is only used to print the gaps (default `h_dim ÷ 2`).
+"""
+function Solve_TB_on_grid(k_grid,Hamiltonian; nv=nothing)
+  #
+  h_dim = size(Hamiltonian(k_grid.kpt[:,1]), 1)     # dimension of the TB Hamiltonian
+  nv_gap = nv === nothing ? max(1, h_dim ÷ 2) : nv
+  #
   TB_sol=TB_Solution()
   #
-  TB_sol.h_dim=2
+  TB_sol.h_dim=h_dim
   TB_sol.eigenval=zeros(Float64,h_dim,k_grid.nk)
   TB_sol.eigenvec=zeros(Complex{Float64},h_dim,h_dim,k_grid.nk)
   TB_sol.H_w     =zeros(Complex{Float64},h_dim,h_dim,k_grid.nk)
   #
   println(" K-point list ")
   println(" nk = ",k_grid.nk)
+  println(" Hamiltonian dimension = ",h_dim)
   #
   #print_k_grid(k_grid, lattice)
   #
@@ -97,17 +108,19 @@ function Solve_TB_on_grid(k_grid,Hamiltonian)
 
   Threads.@threads for ik in ProgressBar(1:k_grid.nk)
     TB_sol.H_w[:,:,ik]=Hamiltonian(k_grid.kpt[:,ik])
-    data= eigen(TB_sol.H_w[:,:,ik])      # Diagonalize the matrix
+    data= eigen(Hermitian(TB_sol.H_w[:,:,ik]))      # Diagonalize the matrix (ascending eigenvalues)
     TB_sol.eigenval[:,ik]   = data.values
     TB_sol.eigenvec[:,:,ik] = data.vectors
   end
   #
-  #Print Hamiltonian info
+  #Print Hamiltonian info (gap between band nv and nv+1)
   #
-  dir_gap=minimum(TB_sol.eigenval[2,:]-TB_sol.eigenval[1,:])
-  println("Direct gap : ",dir_gap*ha2ev," [eV] ")
-  ind_gap=minimum(TB_sol.eigenval[2,:])-maximum(TB_sol.eigenval[1,:])
-  println("Indirect gap : ",ind_gap*ha2ev," [eV] ")
+  if 1 <= nv_gap < h_dim
+    dir_gap=minimum(TB_sol.eigenval[nv_gap+1,:]-TB_sol.eigenval[nv_gap,:])
+    println("Direct gap : ",dir_gap*ha2ev," [eV] ")
+    ind_gap=minimum(TB_sol.eigenval[nv_gap+1,:])-maximum(TB_sol.eigenval[nv_gap,:])
+    println("Indirect gap : ",ind_gap*ha2ev," [eV] ")
+  end
   #
   return TB_sol
   #

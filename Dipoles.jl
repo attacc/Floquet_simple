@@ -8,7 +8,11 @@ using Base.Threads
 #
 # Dipoles are calculated using dH/dk
 #
-function Build_Dipole(k_grid, lattice, TB_sol, orbitals, Hamiltonian, dk)
+#
+# For pairs of (quasi-)degenerate bands, |E_j - E_i| < deg_tol, the dipole is ill defined and is set to zero
+# (relevant only for models with more than two bands).
+#
+function Build_Dipole(k_grid, lattice, TB_sol, orbitals, Hamiltonian, dk; deg_tol=1e-8)
 
     println("Delta-k for derivatives : $dk ")
     println("Building Dipoles using dH/dk:")
@@ -35,7 +39,12 @@ function Build_Dipole(k_grid, lattice, TB_sol, orbitals, Hamiltonian, dk)
 
         for i in 1:h_dim
             for j in i+1:h_dim
-                Dip_h[i, j, :, ik] .= 1im .* Dip_h[i, j, :, ik] ./ (TB_sol.eigenval[j, ik] - TB_sol.eigenval[i, ik])
+                dE = TB_sol.eigenval[j, ik] - TB_sol.eigenval[i, ik]
+                if abs(dE) < deg_tol
+                    Dip_h[i, j, :, ik] .= 0.0
+                else
+                    Dip_h[i, j, :, ik] .= 1im .* Dip_h[i, j, :, ik] ./ dE
+                end
                 Dip_h[j, i, :, ik] .= conj.(Dip_h[i, j, :, ik])
             end
         end
