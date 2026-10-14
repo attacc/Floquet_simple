@@ -12,6 +12,7 @@
 
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.6em}
+\setlength{\emergencystretch}{3em}
 
 % ---------------------------------------------------------------- macros
 \newcommand{\ii}{\mathrm{i}}
@@ -39,7 +40,7 @@
 \newcommand{\hbarsym}{\hbar}
 \DeclareMathOperator{\sgn}{sgn}
 
-\title{Excitons, exciton--phonon coupling and phonon-induced\\ lifetimes in monolayer hBN:\\ formulas implemented in the Julia codes}
+\title{Monolayer hBN in the tight-binding approximation:\\ excitons, optical response (linear, real time, Floquet, Floquet--BSE)\\ and exciton--phonon coupling:\\ formulas implemented in the Julia codes}
 \author{}
 \date{\today}
 
@@ -51,17 +52,49 @@
 \section{Scope, conventions and file map}
 \label{sec:conv}
 
-This note collects all the formulas implemented in the Julia files
+This note collects all the formulas implemented in the Julia files of the directory:
 \begin{center}
-\begin{tabular}{@{}ll@{}}
+\small
+\begin{tabular}{@{}p{4.6cm}p{10.6cm}@{}}
 \toprule
 File & Content \\
 \midrule
-\code{TB\_hBN.jl}, \code{lattice.jl}, \code{bz\_sampling.jl} & tight-binding model, lattice, uniform $\bm k$ grids \\
-\code{BSE.jl} & BSE at $\bm Q=0$ (\code{solve\_bse}), Rytova--Keldysh potential \\
-\code{BSE\_finite\_q.jl} & BSE at finite $\bm Q$ (\code{build\_bse\_kernel}, \code{solve\_bse\_finite\_q}, \code{bse\_dispersion}) \\
-\code{EPH\_hBN.jl} & phonon models and electron--phonon vertices \\
-\code{exciton\_phonon.jl} & exciton--phonon coupling on a $\bm Q$ grid, linewidth and lifetime \\
+\multicolumn{2}{@{}l}{\emph{Model and tools}}\\
+\code{units.jl} & module \code{Units}: conversion constants (Ha$\leftrightarrow$eV, fs, \AA, field and intensity units) \\
+\code{lattice.jl} & module \code{LatticeTools}: lattice and reciprocal vectors (\code{set\_Lattice}), orbitals, minimum image (\code{min\_image\_shifts}) \\
+\code{bz\_sampling.jl} & module \code{BZ\_sampling}: uniform grids (\code{generate\_unif\_grid}), paths, grid neighbours \\
+\code{TB\_tools.jl} & module \code{TB\_tools}: \code{TB\_Solution}, \code{Solve\_TB\_on\_grid}, $\nabla_kH$ (\code{Grad\_H}), basis rotations \\
+\code{TB\_hBN.jl} & module \code{hBN2D}: two-band hBN Hamiltonian (Sec.~\ref{sec:tb}), Rytova--Keldysh potential (Sec.~\ref{sec:RK}) \\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Optics, excitons}}\\
+\code{Dipoles.jl} & interband dipoles \code{Build\_Dipole} (Sec.~\ref{sec:optics}) \\
+\code{Linear\_response.jl} & independent-particle $\chi(\omega)$ (Sec.~\ref{sec:optics}) \\
+\code{BSE.jl} & BSE at $\bm Q=0$, TDA (\code{solve\_bse}, Sec.~\ref{sec:BSE0}) \\
+\code{BSE\_dipoles.jl} & exciton dipoles and $\varepsilon_2(\omega)$ (Sec.~\ref{sec:bsespec}) \\
+\code{BSE\_finite\_q.jl} & BSE at finite $\bm Q$ (\code{build\_bse\_kernel}, \code{solve\_bse\_finite\_q}, \code{bse\_dispersion}, Sec.~\ref{sec:BSEQ}) \\
+\code{plot\_bse\_spectrum.jl} & plot of BSE vs IPA spectra with exciton levels \\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Time-dependent response}}\\
+\code{real\_time.jl} & density-matrix real-time propagation, IPA/BSE, kick and pulses, spectra (Sec.~\ref{sec:rt}) \\
+\code{real\_time\_psi.jl} & same with single-particle wavefunctions (Sec.~\ref{sec:rt}) \\
+\code{FloquetTB.jl} & module \code{FloquetTB}: Floquet--Bloch Hamiltonian and Stark-shift linear response, IPA (Sec.~\ref{sec:floquet}) \\
+\code{FloquetBSE.jl} & Floquet--BSE: linear (BSE by inversion) and self-consistent non-perturbative steady state (Sec.~\ref{sec:flbse}) \\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Phonons}}\\
+\code{EPH\_hBN.jl} & phonon models and electron--phonon vertices (Secs.~\ref{sec:phonons}--\ref{sec:eph}) \\
+\code{exciton\_phonon.jl} & exciton--phonon coupling on a $\bm Q$ grid, linewidth and lifetime (Secs.~\ref{sec:exph}--\ref{sec:lifetime}) \\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Driver scripts} (outputs in parentheses)}\\
+\code{example\_LR.jl} & IPA linear response (\code{xhi\_w.csv}) \\
+\code{check\_IP\_vs\_BSE.jl} & BSE with $W=0$ vs \code{Linear\_response} (\code{check\_IP\_vs\_BSE.png}) \\
+\code{example\_BSE.jl} & BSE spectrum vs IPA (\code{hBN\_BSE\_spectrum.png}) \\
+\code{example\_BSE\_finite\_q.jl} & exciton dispersion $\Gamma$--K--M--$\Gamma$ (\code{exciton\_dispersion.dat/png}) \\
+\code{example\_exciton\_phonon.jl} & exciton--phonon coupling and lifetime (\code{exciton\_phonon*.dat/png}) \\
+\code{example\_RT.jl}, \code{example\_RT\_psi.jl} & real-time IPA/BSE spectra vs frequency-domain results (\code{rt\_spectra.dat/png}) \\
+\code{example\_FL.jl} & IPA Floquet vs linear response (\code{floquet\_vs\_linear\_response.png}) \\
+\code{example\_FL\_BSE.jl} & Floquet--BSE: linear checks and non-perturbative resonant drive (\code{floquet\_bse*.dat/png}) \\
+\midrule
+\code{old\_Floquet/}, \code{AAA/} & earlier Floquet tests (graphene) and backup copies of the phonon codes (not used) \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -114,7 +147,7 @@ H(\kk)=\begin{pmatrix}E_g/2 & -t_0 f(\kk)\\ -t_0 f^*(\kk) & -E_g/2\end{pmatrix},
 f(\kk)=\sum_{n=1}^{3}\ee^{\ii\kk\cdot\dd_n},
 \label{eq:Hk}
 \end{equation}
-with $E_g=7.25$ eV and $t_0=2.92$ eV. The bands are $E_{c/v}(\kk)=\pm\sqrt{(E_g/2)^2+t_0^2|f(\kk)|^2}$, with eigenvectors
+with $E_g=7.25$ eV and $t_0=2.33$ eV (values in \code{TB\_hBN.jl}; the alternative set $t_0=2.92$ eV, $E_g=5.62$ eV of PRB 94, 125303 is commented out). The bands are $E_{c/v}(\kk)=\pm\sqrt{(E_g/2)^2+t_0^2|f(\kk)|^2}$, with eigenvectors
 $\bm u_v(\kk)$ (band 1) and $\bm u_c(\kk)$ (band 2), $\bm u\in\mathbb C^2$.
 
 \paragraph{Periodicity in this gauge.} From \eqref{eq:Hk}, $H_{12}(\kk+\GG)=\ee^{\ii\GG\cdot(\ttau_2-\ttau_1)}H_{12}(\kk)$, hence
@@ -497,6 +530,207 @@ At $T=0$ the lowest exciton at $\bm Q=0$ can only emit phonons into lower states
 Two-band model with TDA; screened interaction reduced to its $\GG=0$ component with a static Rytova--Keldysh form; bare exchange only at $\GG=0$; $\bm Q=0$ exchange dropped; phonons from a nearest-neighbour force-constant model (no flexural modes); electron--phonon vertices from a hopping-modulation (SSH), an on-site polar and an on-site deformation-potential term, all frozen (no phonon-induced change of the screening, no exciton--phonon self-consistency); only the decay of the population (out-scattering) is computed, radiative decay and dephasing are not included.
 
 % =====================================================================
+\section{Dipoles and independent-particle optical response}
+\label{sec:optics}
+
+\subsection{Dipole matrix elements (\code{Dipoles.jl})}
+The function \code{Build\_Dipole} computes $\nabla_{\kk}H$ in the orbital (Wannier) basis by central finite differences with step \code{dk}
+(\code{Grad\_H} of \code{TB\_tools.jl}), rotates it to the band basis and uses
+\begin{equation}
+\boxed{\,\bm D_{nm}(\kk)=\ii\,\frac{\mel{u_n(\kk)}{\nabla_{\kk}H(\kk)}{u_m(\kk)}}{E_m(\kk)-E_n(\kk)},\qquad n\neq m,\qquad \bm D_{nn}=0\,}
+\label{eq:dip}
+\end{equation}
+(array \code{Dip\_h[n,m,$\alpha$,k]}, $\bm D_{mn}=\bm D_{nm}^*$). Only the interband (off-diagonal) part of the position operator is kept everywhere below.
+
+\subsection{Linear response (\code{Linear\_response.jl})}
+For a field polarised along $\hate$, with $\Delta_{\kk}=E_c(\kk)-E_v(\kk)$,
+\begin{equation}
+\chi(\omega)=\frac{16\pi}{\Omega_{\rm BZ}}\,\frac{1}{\Nk}\sum_{\kk}\sum_{v,c}|\hate\cdot\bm D_{vc}(\kk)|^2
+\left[\frac{1}{\Delta_{\kk}-\omega-\ii\eta}+\frac{1}{\Delta_{\kk}+\omega+\ii\eta}\right],
+\label{eq:chiIP}
+\end{equation}
+where the anti-resonant (second) term is included only with \code{antires=true}. The prefactor $16\pi/\Omega_{\rm BZ}$ is chosen so that
+$\mathrm{Im}\,\chi$ coincides with the $\varepsilon_2$ of the BSE code (Sec.~\ref{sec:bsespec}) when $W=0$; this is checked by \code{check\_IP\_vs\_BSE.jl}
+(BSE with $\varepsilon_{\rm bg}=\infty$). \code{example\_LR.jl} computes \eqref{eq:chiIP} and writes \code{xhi\_w.csv}.
+
+% =====================================================================
+\section{BSE optical spectrum}
+\label{sec:bsespec}
+\code{BSE\_dipoles.jl} builds, from the TDA envelopes of \code{solve\_bse},
+\begin{equation}
+\bm D_S=\frac{1}{\sqrt{\Nk}}\sum_{\kk}A^S_{\kk}\,\bm D_{vc}(\kk),\qquad f_S=|\bm D_S|^2
+\qquad(\code{Build\_Exciton\_Dipoles})
+\end{equation}
+and the dielectric function (\code{Build\_Dielectric\_Function})
+\begin{equation}
+\boxed{\,\varepsilon_2(\omega)=\frac{16\pi^2}{\Omega_{\rm BZ}}\sum_S|\hate\cdot\bm D_S|^2\,\delta_\eta(\omega-E_S),\qquad
+\delta_\eta(x)=\frac{1}{\pi}\frac{\eta}{x^2+\eta^2}\,}
+\label{eq:eps2}
+\end{equation}
+Only the resonant term is present (TDA). \code{plot\_bse\_spectrum.jl} plots BSE vs IPA spectra with the exciton levels; \code{example\_BSE.jl}
+is the driver ($48\times48$ grid, $r_0=12$ \AA, output \code{hBN\_BSE\_spectrum.png}).
+
+% =====================================================================
+\section{Real-time propagation}
+\label{sec:rt}
+
+\subsection{Density matrix (\code{real\_time.jl})}
+In the band basis of $H(\kk)$ the $2\times2$ density matrix $\rho_{\kk}(t)$, with $\rho^0=\mathrm{diag}(1,0)$, obeys
+\begin{equation}
+\frac{d\rho_{\kk}}{dt}=-\ii\big[H_{\kk}(t),\rho_{\kk}\big]-\Gamma(\rho_{\kk}),\qquad
+H_{\kk}(t)=\mathrm{diag}(E_v,E_c)+\bm E(t)\cdot\bm D_{\kk}+\Sigma_{\kk}[\rho-\rho^0],
+\label{eq:eom}
+\end{equation}
+\begin{equation}
+\Gamma(\rho)_{vc,cv}=\eta\,\rho_{vc,cv},\qquad \Gamma(\rho)_{vv}=\gamma_1(\rho_{vv}-1),\qquad \Gamma(\rho)_{cc}=\gamma_1\rho_{cc}.
+\label{eq:Gamma_rel}
+\end{equation}
+$\eta=1/T_2$ is the dephasing of the coherences; $\gamma_1=1/T_1$ (keyword \code{gamma1}, default $0$) relaxes the populations to equilibrium
+and was added for the comparison with the non-perturbative Floquet--BSE (Sec.~\ref{sec:flbse}). The equilibrium self-energy is assumed
+to be included in the TB bands, so only the induced static screened exchange (SEX) enters; it is local in the orbital (atomic-gauge) basis,
+$\delta\rho^{\rm orb}=U\delta\rho\,U^\dagger$:
+\begin{equation}
+\Sigma^{\rm orb}_{ab}(\kk)=\sum_{\kk'}M^{ab}_{\kk\kk'}\,\delta\rho^{\rm orb}_{ab}(\kk'),\qquad
+M^{11}=M^{22}=V,\quad M^{12}=C,\quad M^{21}=C^*,
+\label{eq:SEX}
+\end{equation}
+\begin{equation}
+V_{\kk\kk'}=-\frac{W(q_{\kk\kk'})}{\Nk\Acell},\qquad V_{\kk\kk}=-\frac{\Wbar}{\Nk\Acell},\qquad
+C_{\kk\kk'}=V_{\kk\kk'}\,\frac{1}{|\mathcal G|}\sum_{\GG\in\mathcal G}\varphi^{(\GG)}_1\varphi^{(\GG)*}_2,
+\end{equation}
+with the umklapp phases of Sec.~\ref{sec:BSE0} (matrices \code{V}, \code{C} of \code{rt\_build\_interaction}), and $\Sigma=U^\dagger\Sigma^{\rm orb}U$.
+With \code{tda=true} only $\delta\rho_{cv}$ is a source and $\Sigma_{vc}=\Sigma_{cv}^*$, $\Sigma_{vv}=\Sigma_{cc}=0$.
+The polarisation per cell is $\bm P(t)=-\frac{1}{\Nk}\sum_{\kk}\mathrm{Tr}[\rho_{\kk}(t)\bm D_{\kk}]$; for a $\delta$-kick
+$\bm E(t)=\kappa\hate\,\delta(t)$, $\rho(0^+)=\ee^{-\ii\kappa\hate\cdot\bm D}\rho^0\ee^{\ii\kappa\hate\cdot\bm D}$ and
+\begin{equation}
+\chi(\omega)=\frac{16\pi}{\Omega_{\rm BZ}}\,\frac{1}{\kappa}\int_0^{t_{\max}}\!dt\,\hate\cdot\bm P(t)\,\ee^{\ii\omega t}
+\qquad(\code{rt\_susceptibility},\ \code{rt\_spectrum}).
+\end{equation}
+The linear response of \eqref{eq:eom} is the BSE: TDA with \code{tda=true}, full BSE (resonant--antiresonant coupling) with \code{tda=false};
+\code{example\_RT.jl} verifies this against \code{solve\_bse} and \code{Linear\_response} (outputs \code{rt\_spectra.dat/png}). Integration is RK4 with step
+\code{dt}; \code{gaussian\_pulse} provides a finite pulse.
+
+\subsection{Wavefunction version (\code{real\_time\_psi.jl})}
+\code{rt\_propagate\_psi} propagates $\ket{\psi_{\kk}}=(c_v,c_c)$ with $\ii\,d\ket{\psi}/dt=H[\rho]\ket{\psi}-\ii\eta\,c_c$, $\rho=\ket{\psi}\bra{\psi}$,
+with the same self-energy \eqref{eq:SEX}. Damping a pure state is not equivalent to dephasing a density matrix (the norm is not conserved), so
+the two codes agree in the linear regime but not beyond (the wavefunction damping also empties the conduction population at rate $2\eta$); \code{example\_RT\_psi.jl} is the corresponding driver.
+
+% =====================================================================
+\section{Floquet theory for independent particles (\code{FloquetTB.jl})}
+\label{sec:floquet}
+
+For $\bm A(t)=-\bm A_0\sin\omega t$ ($\bm E=\bm E_0\cos\omega t$, $\bm A_0=\bm E_0/\omega$) and $H(t)=\sum_mH_m\ee^{-\ii m\omega t}$,
+\code{compute\_fourier\_components} evaluates on \code{N\_time} points (Peierls substitution, velocity gauge)
+\begin{equation}
+H_m=\frac1T\int_0^T\!dt\,H\big(\kk+\bm A(t)\big)\,\ee^{\ii m\omega t},
+\end{equation}
+and
+\code{build\_floquet\_matrix} assembles the Floquet Hamiltonian
+\begin{equation}
+(H_F)_{mn}=H_{m-n}-m\omega\,\delta_{mn},\qquad m,n=-N_F,\dots,N_F,
+\label{eq:HF}
+\end{equation}
+diagonalised on the grid by \code{solve\_floquet\_on\_grid}.
+
+\paragraph{Linear response from quasi-energies (\code{floquet\_linear\_response}).}
+For a weak field the quasi-energy of the Floquet state connected to $(v,m=0)$ is shifted by the optical Stark shift
+\begin{equation}
+\delta\varepsilon_v(\kk)=-\frac{E_0^2}{4}\sum_c|\hate\cdot\bm D_{vc}|^2\left[\frac{1}{\Delta_{\kk}-\omega-\ii\eta}+\frac{1}{\Delta_{\kk}+\omega-\ii\eta}\right],
+\end{equation}
+so that
+\begin{equation}
+\chi_F(\omega)=-\frac{16\pi}{\Omega_{\rm BZ}}\frac{4}{E_0^2}\frac{1}{\Nk}\sum_{\kk}\big[\varepsilon^F_v(\kk)-E_v(\kk)\big].
+\end{equation}
+The broadening is a non-Hermitian $-\ii\eta$ on the conduction states of every photon block. Two couplings are available: velocity gauge (Peierls)
+and length gauge ($H(t)=\mathrm{diag}(E)+E_0\cos\omega t\,\hate\cdot\bm D$, keyword \code{Dip\_h}); they coincide for $\eta\to0$, while the
+phenomenological damping is not gauge invariant off resonance. \code{example\_FL.jl} compares both with \code{Linear\_response}
+(\code{floquet\_vs\_linear\_response.png}). The scripts in \code{old\_Floquet/} are earlier graphene/gapped-graphene Floquet tests.
+
+% =====================================================================
+\section{Floquet--Bethe--Salpeter equation (\code{FloquetBSE.jl})}
+\label{sec:flbse}
+
+\subsection{Formulation}
+The Stark-shift construction of Sec.~\ref{sec:floquet} does not carry over to interacting electrons: with a self-consistent $\Sigma[\rho]$
+the sum of the orbital quasi-energies double counts the interaction (the Hellmann--Feynman relation holds for the quasi-energy functional
+$\sum\varepsilon-\frac12\overline{\mathrm{Tr}\,\Sigma\delta\rho}$, not for $\sum\varepsilon$), and a non-Hermitian $-\ii\eta$ on the wavefunctions does not
+conserve the trace of the density matrix that builds $\Sigma$. The Floquet--BSE is therefore formulated on the density-matrix equation
+\eqref{eq:eom} (length gauge), looking for its time-periodic steady state under $\bm E(t)=E_0\hate\cos\omega t$:
+\begin{equation}
+\rho_{\kk}(t)=\sum_{n=-N}^{N}\rho_{\kk,n}\,\ee^{-\ii n\omega t},\qquad \rho_{\kk,-n}=\rho_{\kk,n}^\dagger,\qquad
+\Sigma_n=\Sigma\big[\rho_n-\delta_{n0}\rho^0\big].
+\end{equation}
+Inserting in \eqref{eq:eom} (harmonic balance, Floquet--Liouville form):
+\begin{equation}
+\boxed{\begin{gathered}\big(-\ii n\omega+\Gamma\big)\rho_{\kk,n}+\ii\sum_{m}\big[H_{\kk,m},\rho_{\kk,n-m}\big]=\delta_{n0}\,\gamma_1\rho^0,\\
+H_{m}=\delta_{m0}\,\mathrm{diag}(E_v,E_c)+\delta_{|m|,1}\tfrac{E_0}{2}\hate\cdot\bm D+\Sigma_m\end{gathered}}
+\label{eq:flbse}
+\end{equation}
+The polarisation harmonics are $P_n=-\frac{1}{\Nk}\sum_{\kk}\mathrm{Tr}[\rho_{\kk,n}\,\hate\cdot\bm D_{\kk}]$ ($P(t)=\sum_nP_n\ee^{-\ii n\omega t}$) and
+$\chi_1=\frac{16\pi}{\Omega_{\rm BZ}}P_1/(E_0/2)$.
+
+\subsection{First order in the field: the BSE (\code{floquet\_bse\_linear})}
+At first order the populations do not change and $\rho_{cv}(t)=a_{\kk}\ee^{-\ii\omega t}+b_{\kk}\ee^{\ii\omega t}$. Linearising \eqref{eq:SEX},
+$\Sigma_{cv}(\kk)=\sum_{\kk'}\big[A_{\kk\kk'}\rho_{cv}(\kk')+B_{\kk\kk'}\rho_{vc}(\kk')\big]$ with
+\begin{align}
+A_{\kk\kk'}&=\sum_{ab}u^*_{c,a}(\kk)u_{v,b}(\kk)\,M^{ab}_{\kk\kk'}\,u_{c,a}(\kk')u^*_{v,b}(\kk'),\\
+B_{\kk\kk'}&=\sum_{ab}u^*_{c,a}(\kk)u_{v,b}(\kk)\,M^{ab}_{\kk\kk'}\,u_{v,a}(\kk')u^*_{c,b}(\kk')
+\end{align}
+(\code{fl\_bse\_blocks}). $A$ is exactly the TDA kernel of \code{solve\_bse} [Eq.~\eqref{eq:H0} with the umklapp-averaged overlaps] and $B$ the
+resonant--antiresonant coupling. The $\ee^{\mp\ii\omega t}$ components of \eqref{eq:flbse} give, with $d_{\kk}=\hate\cdot\bm D_{cv}(\kk)$ and $E_0/2=1$,
+\begin{equation}
+\boxed{\begin{gathered}\begin{pmatrix}\Delta-\omega-\ii\eta+A & B\\ B^* & \Delta+\omega+\ii\eta+A^*\end{pmatrix}
+\begin{pmatrix}a\\ b^*\end{pmatrix}=-\begin{pmatrix}d\\ d^*\end{pmatrix},\\
+\chi(\omega)=-\frac{16\pi}{\Omega_{\rm BZ}}\frac{1}{\Nk}\sum_{\kk}\big(a_{\kk}d^*_{\kk}+b^*_{\kk}d_{\kk}\big)\end{gathered}}
+\label{eq:flbse_lin}
+\end{equation}
+i.e.\ the BSE resolvent applied to the dipoles, one linear solve of size $2\Nk$ per frequency. Expanding the resonant block on the
+eigenvectors of $\Delta+A$ gives back Eq.~\eqref{eq:eps2} term by term ($\mathrm{Im}\,1/(E_S-\omega-\ii\eta)=\pi\delta_\eta$). Options:
+\begin{itemize}[leftmargin=1.5em,itemsep=0pt]
+\item \code{tda=true, antires=false}: identical to \code{solve\_bse} + \code{Build\_Dielectric\_Function};
+\item \code{tda=true}: identical to \code{rt\_spectrum(...; tda=true)};
+\item \code{tda=false}: full BSE, identical to \code{rt\_spectrum(...; tda=false)};
+\item \code{interaction=nothing}: identical to \code{Linear\_response}.
+\end{itemize}
+Only $\eta$ enters (no $\gamma_1$): no bath is needed for linear spectra, the
+dephasing plays the role of the BSE broadening. With $\eta\to0$ the matrix is singular at the exciton energies (no stationary state at
+resonance: secular growth of the coherence).
+
+\subsection{Non-perturbative steady state (\code{floquet\_bse\_steady\_state})}
+For a given $\Sigma=\{\Sigma_m\}$, Eq.~\eqref{eq:flbse} is linear and diagonal in $\kk$: one system of dimension $4(2N+1)$ per $\kk$ (\code{fl\_liouvillian},
+column-major $\mathrm{vec}\,\rho_n$, $\mathrm{vec}(H\rho-\rho H)=(1\otimes H-H^{T}\otimes1)\mathrm{vec}\,\rho$), solved exactly by LU (\code{fl\_solve\_k}):
+this contains the full Rabi/Autler--Townes physics of each two-level system and all harmonics up to $N$. Self-consistency is required because
+$\Sigma$ depends on $\rho$; it is the fixed point $F(\Sigma)=G(\Sigma)-\Sigma=0$, $G(\Sigma)=\Sigma[\rho[\Sigma]]$ (\code{fl\_G}).
+\begin{itemize}[leftmargin=1.5em]
+\item The plain iteration $\Sigma\leftarrow G(\Sigma)$ does not converge near bound excitons: at linear order its Jacobian is
+$-(\Delta-\omega-\ii\eta)^{-1}K$, which has an eigenvalue $\lambda\to1$ when $\omega\to E_S$ (exactly 1 for $\eta=0$), so $|\lambda|\approx1$ near every exciton.
+Anderson mixing converges at weak field but stalls at strong field.
+\item The code uses a Jacobian-free Newton--GMRES method. The Jacobian--vector product
+\[
+J\,\delta\Sigma=\Sigma\big[\delta\rho\big],\qquad \delta\rho_{\kk,n}=-L_{\kk}^{-1}\,\ii\sum_m\big[\delta\Sigma_{\kk,m},\rho_{\kk,n-m}\big]
+\]
+reuses the LU factors (\code{fl\_JG}); restarted GMRES (\code{fl\_gmres}), backtracking line search, and a continuation (ramp) in $E_0$
+(\code{n\_ramp} steps, or \code{Sigma0} from the previous amplitude) to follow the physical branch, as an adiabatic switch-on does in real time.
+Near resonance the self-consistent problem can have several solutions (optical bistability); the continuation selects one of them.
+\item $\gamma_1>0$ is mandatory: with $\gamma_1=0$ the $n=0$ population equations are singular (the steady populations are fixed only by the
+balance between absorption and relaxation). Physically, a driven system with dephasing only keeps absorbing until saturation; a $T_1$ process
+(bath) is needed to define the non-equilibrium steady state. A microscopic bath (Lindblad, Floquet--Keldysh) would replace the
+relaxation-time form \eqref{eq:Gamma_rel}.
+\item Stability of the linearised problem: the full BSE (time-dependent SEX) has real excitation energies when $A\pm B$ are positive definite,
+which holds for the static Rytova--Keldysh SEX on the gapped hBN ground state; residual instabilities are numerical (solver), not physical.
+\end{itemize}
+
+\subsection{Validation}
+The algorithms were first validated with a line-by-line NumPy port of the hBN model ($9\times9$ and $12\times12$ grids, $r_0=12$ \AA, $\eta=0.1$ eV):
+linear order, IPA vs \eqref{eq:chiIP}: $3\times10^{-16}$; TDA resonant vs \eqref{eq:eps2}: $3\times10^{-14}$; full BSE vs real time (kick, $dt=0.5$,
+$t_{\max}=10/\eta$): $3\times10^{-5}$ (Im), $3\times10^{-4}$ (Re); full vs TDA: $3\times10^{-3}$. Non-perturbative, drive resonant with the lowest
+bright exciton (5.60 eV), $\gamma_1=0.05$ eV, $N=3$, $E_0=5\times10^{-3}$ a.u.: Floquet--BSE vs real-time CW propagation of \eqref{eq:eom} after
+$10\,T_1$: $|P_1|$ $0.0622819$ vs $0.0622821$, $|P_2|$ $1.39259\times10^{-4}$ vs $1.39261\times10^{-4}$, $|P_3|$ $3.1365\times10^{-6}$ vs $3.1373\times10^{-6}$,
+$n_c$ $0.0610169$ vs $0.0610172$; weak field ($E_0=10^{-6}$): $\chi_1$ equal to \eqref{eq:flbse_lin} to $10^{-6}$. Newton converges in 4--8
+iterations per amplitude. \code{example\_FL\_BSE.jl} repeats these checks with the Julia code (outputs \code{floquet\_bse.png},
+\code{floquet\_bse\_linear.dat}, \code{floquet\_bse\_nonlinear.dat}).
+
+% =====================================================================
 \appendix
 \section{Parameters and defaults}
 \label{app:par}
@@ -506,7 +740,7 @@ Two-band model with TDA; screened interaction reduced to its $\GG=0$ component w
 \toprule
 Quantity & Symbol / keyword & Default \\
 \midrule
-Hopping, gap & $t_0$, $E_g$ & 2.92 eV, 7.25 eV \\
+Hopping, gap & $t_0$, $E_g$ & 2.33 eV, 7.25 eV \\
 Bond length & $a_{cc}$ & 2.75 Bohr \\
 Screening length, background & \code{r0}, \code{eps\_bg} & 12 \AA\ (example), 1 \\
 Exchange in BSE & \code{exchange} & false \\
@@ -523,6 +757,12 @@ $\QQ$-grid stride & \code{q\_step} & 3 (with $n_k=36$) \\
 Initial / final excitons & \code{n\_init}, \code{n\_final} & 4, 8 \\
 Broadening & \code{sigma\_ev} & 0.010 eV \\
 Minimum phonon frequency & \code{omega\_min} & $10^{-7}$ Ha \\
+Dipole finite-difference step & \code{dk} & $10^{-3}$ Bohr$^{-1}$ \\
+Dephasing / broadening & \code{eta} $=\eta$ & 0.05--0.1 eV (examples) \\
+Population relaxation & \code{gamma1} $=\gamma_1$ & 0 (RT), 0.05 eV (Floquet--BSE) \\
+Photon harmonics & \code{N\_floq} & 1 (IPA), 2--3 (BSE) \\
+Real-time step, kick & \code{dt}, \code{kappa} & 0.5 a.u., $10^{-4}$ a.u. \\
+Field ramp (Floquet--BSE) & \code{n\_ramp} & 8 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -531,7 +771,7 @@ Minimum phonon frequency & \code{omega\_min} & $10^{-7}$ Ha \\
 \label{app:map}
 
 \begin{center}
-\small
+\footnotesize
 \begin{tabular}{@{}lll@{}}
 \toprule
 Equation & Function / variable & File \\
@@ -549,6 +789,16 @@ Dispersion path & \code{hex\_high\_symmetry\_points}, \code{bse\_dispersion}, \c
 Acoustic model & \code{hbn\_acoustic\_model} & \code{EPH\_hBN.jl} \\
 \eqref{eq:G} & \code{exciton\_phonon\_coupling} & \code{exciton\_phonon.jl} \\
 \eqref{eq:Gamma} & \code{exciton\_phonon\_linewidth} & \code{exciton\_phonon.jl} \\
+\eqref{eq:dip} & \code{Build\_Dipole}, \code{Grad\_H} & \code{Dipoles.jl}, \code{TB\_tools.jl} \\
+\eqref{eq:chiIP} & \code{Linear\_response} & \code{Linear\_response.jl} \\
+\eqref{eq:eps2} & \code{Build\_Dielectric\_Function} & \code{BSE\_dipoles.jl} \\
+\eqref{eq:eom}--\eqref{eq:SEX} & \code{rt\_build\_interaction}, \code{rt\_propagate} & \code{real\_time.jl} \\
+Wavefunction RT & \code{rt\_propagate\_psi}, \code{rt\_spectrum\_psi} & \code{real\_time\_psi.jl} \\
+\eqref{eq:HF} & \code{compute\_fourier\_components} & \code{FloquetTB.jl} \\
+Stark shift & \code{floquet\_linear\_response} & \code{FloquetTB.jl} \\
+\eqref{eq:flbse_lin} & \code{fl\_bse\_blocks}, \code{floquet\_bse\_linear} & \code{FloquetBSE.jl} \\
+\eqref{eq:flbse} & \code{fl\_liouvillian}, \code{fl\_solve\_k} & \code{FloquetBSE.jl} \\
+Newton--GMRES & \code{floquet\_bse\_steady\_state} & \code{FloquetBSE.jl} \\
 \bottomrule
 \end{tabular}
 \end{center}

@@ -9,6 +9,8 @@
 #   rho_k(t) : 2x2 density matrix,  rho_k(0) = diag(1,0)
 #
 #   i d rho_k/dt = [ H_k(t), rho_k ]  -  i eta ( rho_k - diag(rho_k) )          (dephasing of the coherences)
+#                                     -  i gamma1 ( diag(rho_k) - rho0 )        (optional population relaxation,
+#                                                                                 default gamma1 = 0, see FloquetBSE.jl)
 #
 #   H_k(t) = diag(E_v(k),E_c(k))  +  E(t) . D_k  +  Sigma_k[ drho ],     drho = rho - rho(0)
 #
@@ -89,7 +91,7 @@ end
 
 """
     rt_propagate(TB_sol, Dip_h; interaction=nothing, kick=nothing, field=nothing,
-                 tmax, dt, eta, tda=false, nsave=1, verbose=true)
+                 tmax, dt, eta, gamma1=0.0, tda=false, nsave=1, verbose=true)
 
 Propagates the density matrix with RK4 (time step `dt`, final time `tmax`, atomic units).
 
@@ -97,6 +99,7 @@ Propagates the density matrix with RK4 (time step `dt`, final time `tmax`, atomi
 - `kick`        : vector (one component per Cartesian direction of `Dip_h`): delta kick E(t)=kick*delta(t)
 - `field`       : function `t -> Vector` giving E(t) (length = number of directions), optional
 - `eta`         : dephasing rate of the coherences (Hartree)
+- `gamma1`      : relaxation rate of the populations towards rho0 (Hartree, default 0 = none)
 - `tda`         : with interaction, use the Tamm-Dancoff approximation
 - `nsave`       : the polarisation is stored every `nsave` steps
 
@@ -104,7 +107,7 @@ Returns `(times, P, Efield)`: `P[alpha, n]` is the polarisation (per cell) and `
 the applied field (0 for a pure kick).
 """
 function rt_propagate(TB_sol, Dip_h; interaction=nothing, kick=nothing, field=nothing,
-                      tmax::Real, dt::Real, eta::Real, tda::Bool=false, nsave::Int=1,
+                      tmax::Real, dt::Real, eta::Real, gamma1::Real=0.0, tda::Bool=false, nsave::Int=1,
                       verbose::Bool=true)
     TB_sol.h_dim == 2 || error("rt_propagate: two bands required")
     Nk   = size(TB_sol.eigenval, 2)
@@ -198,10 +201,10 @@ function rt_propagate(TB_sol, Dip_h; interaction=nothing, kick=nothing, field=no
                 H12 += Sg[1, 2, ik]; H21 += Sg[2, 1, ik]
             end
             r11 = R[1, 1, ik]; r12 = R[1, 2, ik]; r21 = R[2, 1, ik]; r22 = R[2, 2, ik]
-            dR[1, 1, ik] = -1im * ((H11 * r11 + H12 * r21) - (r11 * H11 + r12 * H21))
+            dR[1, 1, ik] = -1im * ((H11 * r11 + H12 * r21) - (r11 * H11 + r12 * H21)) - gamma1 * (r11 - 1.0)
             dR[1, 2, ik] = -1im * ((H11 * r12 + H12 * r22) - (r11 * H12 + r12 * H22)) - eta * r12
             dR[2, 1, ik] = -1im * ((H21 * r11 + H22 * r21) - (r21 * H11 + r22 * H21)) - eta * r21
-            dR[2, 2, ik] = -1im * ((H21 * r12 + H22 * r22) - (r21 * H12 + r22 * H22))
+            dR[2, 2, ik] = -1im * ((H21 * r12 + H22 * r22) - (r21 * H12 + r22 * H22)) - gamma1 * r22
         end
     end
 
