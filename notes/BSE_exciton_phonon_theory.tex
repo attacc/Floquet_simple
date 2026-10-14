@@ -78,7 +78,7 @@ File & Content \\
 \code{real\_time.jl} & density-matrix real-time propagation, IPA/BSE, kick and pulses, spectra (Sec.~\ref{sec:rt}) \\
 \code{real\_time\_psi.jl} & same with the occupied wavefunctions, any number of bands (Sec.~\ref{sec:rt}) \\
 \code{FloquetTB.jl} & module \code{FloquetTB}: Floquet--Bloch Hamiltonian and Stark-shift linear response, IPA (Sec.~\ref{sec:floquet}) \\
-\code{FloquetBSE.jl} & Floquet--BSE: linear (BSE by inversion) and self-consistent non-perturbative steady state (Sec.~\ref{sec:flbse}) \\
+\code{FloquetBSE.jl} & Floquet--BSE, any number of bands: linear (BSE by inversion) and self-consistent non-perturbative steady state (Sec.~\ref{sec:flbse}) \\
 \midrule
 \multicolumn{2}{@{}l}{\emph{Phonons}}\\
 \code{EPH\_hBN.jl} & phonon models and electron--phonon vertices (Secs.~\ref{sec:phonons}--\ref{sec:eph}) \\
@@ -750,6 +750,23 @@ relaxation-time form \eqref{eq:Gamma_rel}.
 \item Stability of the linearised problem: the full BSE (time-dependent SEX) has real excitation energies when $A\pm B$ are positive definite,
 which holds for the static Rytova--Keldysh SEX on the gapped hBN ground state; residual instabilities are numerical (solver), not physical.
 \end{itemize}
+
+\subsection{Several valence and conduction bands}
+\code{FloquetBSE.jl} works for any number of bands $h$ and valence bands $n_v$ (keyword \code{nv}, default $h/2$) and any number of
+orbitals: the orbital kernel $M^{ab}_{\kk\kk'}$ of Eq.~(\ref{eq:SEX}) is taken from \code{rt\_build\_interaction\_general} (or from the two-orbital
+\code{rt\_build\_interaction}, function \code{fl\_orbital\_kernel}). At linear order only the valence--conduction coherences respond
+($[H^{(1)},\rho^0]$ vanishes inside the valence and conduction blocks), so Eq.~\eqref{eq:flbse_lin} holds with the pair index
+$p=(v,c,\kk)$ ordered as \code{bse\_index} of \code{BSE.jl}, $\Delta_p=E_c(\kk)-E_v(\kk)$, $d_p=\hate\cdot\bm D_{cv}(\kk)$ and
+\begin{align}
+A_{p,p'}&=\sum_{ab}u^*_{c,a}(\kk)u_{v,b}(\kk)\,M^{ab}_{\kk\kk'}\,u_{c',a}(\kk')u^*_{v',b}(\kk'),\\
+B_{p,p'}&=\sum_{ab}u^*_{c,a}(\kk)u_{v,b}(\kk)\,M^{ab}_{\kk\kk'}\,u_{v',a}(\kk')u^*_{c',b}(\kk'),
+\end{align}
+so that $\Delta+A$ is the multi-band TDA BSE matrix of \code{solve\_bse}. In the non-perturbative solver $\rho_{\kk,n}$ are $h\times h$ matrices
+(Floquet--Liouville systems of dimension $h^2(2N+1)$ per $\kk$); $\eta$ damps all the coherences $\rho_{nm}$, $n\neq m$ (as
+$\eta(\rho-\mathrm{diag}\,\rho)$ in \code{real\_time.jl}), $\gamma_1$ relaxes all populations to $\rho^0$, and \code{interband\_only=true} keeps only
+the valence--conduction dipoles. For $h=2$, $n_v=1$ both solvers reproduce the two-band implementation ($\sim10^{-16}$); for a 4-band model made of
+two copies on disjoint orbitals ($n_v=2$) the linear $\chi$ and the non-perturbative harmonics and populations equal the sum of the two copies
+($\sim10^{-15}$, NumPy reference port).
 
 \subsection{Validation}
 The algorithms were first validated with a line-by-line NumPy port of the hBN model ($9\times9$ and $12\times12$ grids, $r_0=12$ \AA, $\eta=0.1$ eV):
