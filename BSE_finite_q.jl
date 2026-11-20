@@ -21,6 +21,7 @@
 
 using LinearAlgebra
 using Base.Threads
+import KrylovKit
 using .LatticeTools: Lattice, min_image_shifts
 using .hBN2D: rytova_keldysh_kernel
 using .Units
@@ -115,12 +116,16 @@ Returns a NamedTuple `(energies, vectors, continuum, UC, E_c)`:
 - `UC`, `E_c` : conduction vectors (norb x Nk) and energies at k+Q used to build the basis
   (needed to fix the gauge in exciton-phonon matrix elements)
 
+`solver=:krylov` uses Lanczos (KrylovKit) for the lowest `nstates`, much faster than
+`solver=:dense` (default, full O(Nk^3) diagonalisation) on dense k-grids, same eigenvalues.
+
 `exchange=true` adds the bare (G=0) exchange term v(Q) = 2 pi / (eps_bg |Q|), which is
 omitted for |Q| ~ 0 (as in BSE.jl at Q=0).
 """
 function solve_bse_finite_q(kernel::BSEKernel, tb_sol, k_grid, Hamiltonian, Q::AbstractVector{<:Real};
                             nstates::Int=4, exchange::Bool=false, return_vectors::Bool=false,
-                            v_band::Int=1, c_band::Int=2)
+                            v_band::Int=1, c_band::Int=2,
+                            solver::Symbol=:dense, krylovdim::Int=60, tol::Float64=1e-10)
     Nk = kernel.nk
     norb = kernel.norb
     Qv = collect(Float64, Q)
@@ -138,10 +143,12 @@ function solve_bse_finite_q(kernel::BSEKernel, tb_sol, k_grid, Hamiltonian, Q::A
         E_c = zeros(Float64, Nk)
         UC = zeros(ComplexF64, norb, Nk)
         Threads.@threads for ik in 1:Nk
-            H = Hamiltonian(k_grid.kpt[:, ik] .+ Qv)
-            F = eigen(Hermitian(Matrix(H)))
-            E_c[ik] = F.values[c_band]
-            UC[:, ik] = F.vectors[:, c_band]
+            # NB: "local" new names. A variable "F" assigned elsewhere in this function would be
+            # shared among the threads (race condition: random E_c/UC for Q /= 0 with -t > 1)
+            local Hk = Hamiltonian(k_grid.kpt[:, ik] .+ Qv)
+            local Fk = eigen(Hermitian(Matrix(Hk)))
+            E_c[ik] = Fk.values[c_band]
+            UC[:, ik] = Fk.vectors[:, c_band]
         end
     end
 
@@ -201,11 +208,22 @@ function solve_bse_finite_q(kernel::BSEKernel, tb_sol, k_grid, Hamiltonian, Q::A
     end
 
     nst = min(nstates, Nk)
-    if return_vectors
-        F = eigen(Hermitian(H_BSE), 1:nst)
-        return (energies=F.values, vectors=F.vectors, continuum=continuum, UC=UC, E_c=E_c)
+    Hh  = Hermitian(H_BSE)
+    if solver == :krylov && nst < Nk ÷ 4
+        # Lanczos (KrylovKit) for the lowest nst states; a few more are requested so that
+        # (near-)degenerate states (e.g. K/K' excitons) are not missed
+        nask = min(2 * nst + 6, Nk ÷ 4)
+        vals, vecs, info = KrylovKit.eigsolve(Hh, randn(ComplexF64, Nk), nask, :SR; ishermitian=true,
+                                              krylovdim=max(krylovdim, 3 * nask), tol=tol)
+        info.converged < nst && @warn "Krylov: only $(info.converged) of $nst states converged, use solver=:dense"
+        idx = sortperm(real.(vals))[1:nst]
+        V   = return_vectors ? reduce(hcat, vecs[idx]) : nothing
+        return (energies=real.(vals[idx]), vectors=V, continuum=continuum, UC=UC, E_c=E_c)
+    elseif return_vectors
+        Fd = eigen(Hh, 1:nst)
+        return (energies=Fd.values, vectors=Fd.vectors, continuum=continuum, UC=UC, E_c=E_c)
     else
-        vals = eigvals(Hermitian(H_BSE), 1:nst)
+        vals = eigvals(Hh, 1:nst)
         return (energies=vals, vectors=nothing, continuum=continuum, UC=UC, E_c=E_c)
     end
 end
